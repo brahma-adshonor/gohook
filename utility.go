@@ -78,8 +78,10 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	// 1. use relaive jump if |from-to| < 2G
 	// 2. otherwise, push target, then ret
 
-	use_relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
-	if (use_relative) {
+	relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
+
+	if (relative) {
+        to = (to - from + 5)
 		return []byte {
 			0xe9,
 			byte(to),
@@ -99,9 +101,10 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 			0xc3, // retn
 		}
 	} else if (mode == 64) {
+        // no push 64imm instruction, so push to %rdx
 		return []byte {
 			0x48, // prefix
-			0x68, // push
+			0xba, // mov to %rdx
 			byte(to),
 			byte(to >> 8),
 			byte(to >> 16),
@@ -110,6 +113,7 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 			byte(to >> 40),
 			byte(to >> 48),
 			byte(to >> 56),
+            0x52, // push %rdx
 			0xc3,
 		}
 	} else {

@@ -42,7 +42,6 @@ func doUnHook(target uintptr) error{
 	return nil
 }
 
-
 func HookInstanceMethod(mode int, target reflect.Type, method string, replacement, trampoline interface{}) {
 	m, ok := target.MethodByName(method)
 	if !ok {
@@ -88,7 +87,7 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) {
 		tp = trampoline.Pointer()
 	}
 
-	UnHook(target.Pointer())
+	doUnHook(target.Pointer())
 
 	bytes := hookFunction(mode, target.Pointer(),replacement.Pointer(), tp)
 
