@@ -69,8 +69,9 @@ func GetInsLenGreaterThan(data []byte, least int) int {
 func TransformInstruction(code []byte) []byte {
 	// TODO: fix relative jmp instruction.
 	// jmp jne jge etc.
-	ret := make([]byte, 0, len(code))
+	ret := make([]byte, len(code))
 	copy(ret, code)
+
 	return ret
 }
 
@@ -81,15 +82,20 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
 
 	if (relative) {
-        to = (to - from + 5)
-		return []byte {
-			0xe9,
-			byte(to),
-			byte(to>>8),
-			byte(to>>16),
-			byte(to>>24),
-		}
-	}
+        var dis uint32
+        if to > from {
+            dis = uint32(int32(to - from) + 5)
+        }else {
+            dis = uint32(-int32(from - to) - 5)
+        }
+        return []byte {
+            0xe9,
+            byte(dis),
+            byte(dis>>8),
+            byte(dis>>16),
+            byte(dis>>24),
+        }
+    }
 
 	if (mode == 32) {
 		return []byte {
@@ -114,7 +120,7 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 			byte(to >> 48),
 			byte(to >> 56),
             0x52, // push %rdx
-			0xc3,
+			0xc3, // retn
 		}
 	} else {
 		panic("invalid mode")
@@ -140,11 +146,13 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (original []byt
 
 	if trampoline != uintptr(0) {
 		code := TransformInstruction(original)
-		CopyInstruction(trampoline, code)
-		jumpcode := genJumpCode(mode, target + uintptr(insLen), replace + uintptr(insLen))
-		CopyInstruction(trampoline+uintptr(insLen), jumpcode)
-	}
 
-	return
+		CopyInstruction(trampoline, code)
+		jumpcode := genJumpCode(mode, target + uintptr(insLen), trampoline + uintptr(insLen))
+
+        CopyInstruction(trampoline+uintptr(insLen), jumpcode)
+    }
+
+    return
 }
 
