@@ -1,17 +1,17 @@
 package hook
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
-	"errors"
 )
 
 type HookInfo struct {
 	Mode        int
-	Original []byte
+	Original    []byte
 	Target      reflect.Value
 	Replacement reflect.Value
-	Trampoline reflect.Value
+	Trampoline  reflect.Value
 }
 
 var (
@@ -30,7 +30,7 @@ func UnHook(target interface{}) error {
 	return doUnHook(t.Pointer())
 }
 
-func doUnHook(target uintptr) error{
+func doUnHook(target uintptr) error {
 	info, ok := g_all[target]
 	if !ok {
 		return errors.New("target not exist")
@@ -89,8 +89,7 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) {
 
 	doUnHook(target.Pointer())
 
-	bytes := hookFunction(mode, target.Pointer(),replacement.Pointer(), tp)
+	bytes := hookFunction(mode, target.Pointer(), replacement.Pointer(), tp)
 
-	g_all[target.Pointer()] = HookInfo{Mode:mode, Original:bytes, Target:target, Replacement:replacement, Trampoline:trampoline}
+	g_all[target.Pointer()] = HookInfo{Mode: mode, Original: bytes, Target: target, Replacement: replacement, Trampoline: trampoline}
 }
-

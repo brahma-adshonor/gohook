@@ -1,11 +1,11 @@
 package hook
 
 import (
+	"golang.org/x/arch/x86/x86asm"
+	"math"
 	"reflect"
 	"syscall"
 	"unsafe"
-	"math"
-	"golang.org/x/arch/x86/x86asm"
 )
 
 func makeSliceFromPointer(p uintptr, length int) []byte {
@@ -22,7 +22,7 @@ func getPageAddr(ptr uintptr) uintptr {
 
 func setPageWritable(addr uintptr, length int, prot int) {
 	pageSize := syscall.Getpagesize()
-	for p := getPageAddr(addr); p < addr + uintptr(length); p += uintptr(pageSize) {
+	for p := getPageAddr(addr); p < addr+uintptr(length); p += uintptr(pageSize) {
 		page := makeSliceFromPointer(p, pageSize)
 		err := syscall.Mprotect(page, prot)
 		if err != nil {
@@ -81,34 +81,34 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 
 	relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
 
-	if (relative) {
-        var dis uint32
-        if to > from {
-            dis = uint32(int32(to - from) + 5)
-        }else {
-            dis = uint32(-int32(from - to) - 5)
-        }
-        return []byte {
-            0xe9,
-            byte(dis),
-            byte(dis>>8),
-            byte(dis>>16),
-            byte(dis>>24),
-        }
-    }
+	if relative {
+		var dis uint32
+		if to > from {
+			dis = uint32(int32(to-from) + 5)
+		} else {
+			dis = uint32(-int32(from-to) - 5)
+		}
+		return []byte{
+			0xe9,
+			byte(dis),
+			byte(dis >> 8),
+			byte(dis >> 16),
+			byte(dis >> 24),
+		}
+	}
 
-	if (mode == 32) {
-		return []byte {
+	if mode == 32 {
+		return []byte{
 			0x68, // push
 			byte(to),
-			byte(to>>8),
-			byte(to>>16),
-			byte(to>>24),
+			byte(to >> 8),
+			byte(to >> 16),
+			byte(to >> 24),
 			0xc3, // retn
 		}
-	} else if (mode == 64) {
-        // no push 64imm instruction, so push to %rdx
-		return []byte {
+	} else if mode == 64 {
+		// no push 64imm instruction, so push to %rdx
+		return []byte{
 			0x48, // prefix
 			0xba, // mov to %rdx
 			byte(to),
@@ -119,7 +119,7 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 			byte(to >> 40),
 			byte(to >> 48),
 			byte(to >> 56),
-            0x52, // push %rdx
+			0x52, // push %rdx
 			0xc3, // retn
 		}
 	} else {
@@ -148,11 +148,10 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (original []byt
 		code := TransformInstruction(original)
 
 		CopyInstruction(trampoline, code)
-		jumpcode := genJumpCode(mode, target + uintptr(insLen), trampoline + uintptr(insLen))
+		jumpcode := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
 
-        CopyInstruction(trampoline+uintptr(insLen), jumpcode)
-    }
+		CopyInstruction(trampoline+uintptr(insLen), jumpcode)
+	}
 
-    return
+	return
 }
-
