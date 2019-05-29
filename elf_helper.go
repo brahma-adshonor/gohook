@@ -1,66 +1,67 @@
 package hook
 
 import (
-    "fmt"
-    "os"
-    "sort"
-    "errors"
-    "debug/elf"
-    "path/filepath"
+	"debug/elf"
+	"errors"
+	"os"
+	"path/filepath"
+	"sort"
 )
 
 var (
-    curExecutable := filepath.Abs(os.Args[0])
+	curExecutable, _ = filepath.Abs(os.Args[0])
 )
 
-type SymbolSlice []*elf.Symbol
+type SymbolSlice []elf.Symbol
 
-func (a SymbolSlice) Len() int { return len(a) }
+func (a SymbolSlice) Len() int           { return len(a) }
+func (a SymbolSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a SymbolSlice) Less(i, j int) bool { return a[i].Value < a[j].Value }
-func (a SymbolSlice) Swap(i, j int) { return a[i],a[j]=a[j],a[i] }
 
 type ElfInfo struct {
-    CurFile string
-    Symbol  SymbolSlice
+	CurFile string
+	Symbol  SymbolSlice
 }
 
-func NewElfInfo() *ElfInfo {
-    ei := & ElfInfo { CurFile: curExecutable }
-    err := ei.init()
-    if err != nil {
-        return error
-    }
+func NewElfInfo() (*ElfInfo, error) {
+	ei := &ElfInfo{CurFile: curExecutable}
+	err := ei.init()
+	if err != nil {
+		return nil, err
+	}
 
-    return ei
+	return ei, nil
 }
 
 func (ei *ElfInfo) init() error {
-    f, err := elf.Open(ei.CurFile)
-    if err != nil {
-        return error
-    }
+	f, err := elf.Open(ei.CurFile)
+	if err != nil {
+		return err
+	}
 
-    defer f.Close()
-    ei.Symbol, err = f.Symbols()
+	defer f.Close()
 
-    if err != nil {
-        return error
-    }
+	var sym []elf.Symbol
+	sym, err = f.Symbols()
+	ei.Symbol = SymbolSlice(sym)
 
-    sort.Sort(ei.Symbol)
-    return il
+	if err != nil {
+		return err
+	}
+
+	sort.Sort(ei.Symbol)
+	return nil
 }
 
-func (ei *ElfInfo) GetFuncSize(addr uintptr) (uintptr, error) {
-    if ei.Symbol == nil {
-        return uintptr(0), errors.New("no symbol")
-    }
+func (ei *ElfInfo) GetFuncSize(addr uintptr) (uint64, error) {
+	if ei.Symbol == nil {
+		return 0, errors.New("no symbol")
+	}
 
-    i := sort.Search(len(ei.Symbol), func(i int) bool { return ei.Symbol[i].Value >= addr })
-    if i < len(ei.Symbol) && ei.Symbol[i].Value == addr {
-        return ei.Symbol[i].Size, nil
-    }
+	i := sort.Search(len(ei.Symbol), func(i int) bool { return ei.Symbol[i].Value >= uint64(addr) })
+	if i < len(ei.Symbol) && ei.Symbol[i].Value == uint64(addr) {
+		return ei.Symbol[i].Size, nil
+	}
 
-    return uintptr(0), errors.New("can not find func")
+	return 0, errors.New("can not find func")
 }
-

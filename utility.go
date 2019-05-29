@@ -3,10 +3,27 @@ package hook
 import (
 	"golang.org/x/arch/x86/x86asm"
 	"math"
+    "bytes"
 	"reflect"
 	"syscall"
 	"unsafe"
 )
+
+var (
+	elfInfo, _ = NewElfInfo()
+    funcPrologue32 = []byte{0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x8d,0x44,0x24,0xe0}
+    funcPrologue64 = []byte{0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x8d,0x44,0x24,0xe0}
+)
+
+func SetFuncPrologue(mode int, data []byte) {
+    if mode == 32 {
+        funcPrologue32 = make([]byte, len(data))
+        copy(funcPrologue32, data)
+    } else {
+        funcPrologue64 = make([]byte, len(data))
+        copy(funcPrologue64, data)
+    }
+}
 
 func makeSliceFromPointer(p uintptr, length int) []byte {
 	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
@@ -38,7 +55,7 @@ func CopyInstruction(location uintptr, data []byte) {
 	setPageWritable(location, len(data), syscall.PROT_READ|syscall.PROT_EXEC)
 }
 
-func GetInsLenGreaterThan(data []byte, least int) int {
+func GetInsLenGreaterThan(mode int, data []byte, least int) int {
 	if len(data) < least {
 		return 0
 	}
@@ -54,7 +71,7 @@ func GetInsLenGreaterThan(data []byte, least int) int {
 			break
 		}
 
-		inst, err := x86asm.Decode(d, 64)
+		inst, err := x86asm.Decode(d, mode)
 		if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(d[0])) {
 			break
 		}
@@ -66,9 +83,95 @@ func GetInsLenGreaterThan(data []byte, least int) int {
 	return curLen
 }
 
-func TransformInstruction(code []byte) []byte {
-	// TODO: fix relative jmp instruction.
-	// jmp jne jge etc.
+
+type JumpInstruction struct {
+    addr uintptr
+    inst x86asm.Inst
+}
+
+// relative jmp instruction: jmp, call
+// JA JAE JB JBE JCXZ JE JECXZ JG JGE JL JLE JMP JNE JNO JNP JNS JO JP JRCXZ JS
+
+// one byte opcode, one byte relative offset
+twoByteCondJmp := {0x70,0x71,0x72,0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7a,0x7b,0x7c,0x7d,0x7e,0x7f,0xe3}
+
+// two byte opcode, four byte relative offset
+sixByteCondJmp := {0x0f80,0x0f81,0x0f82,0x0f83,0x0f84,0x0f85,0x0f86,0x0f87,0x0f88,0x0f89,0x0f8a,0x0f8b,0x0f8c,0x0f8d,0x0f8e,0x0f8f}
+
+// one byte opcode, one byte relative offset
+twoByteJmp := {0xeb}
+
+// one byte opcode, four byte relative offset
+fiveByteJmp := {0xe9}
+
+
+// one byte opcode, 4 byte relative offset
+fiveByteCall := {0xe8}
+
+// return instruction, no operand
+oneByteRet := {0xc3, 0xcb}
+
+// return instruction, one byte opcode, 2 byte operand
+threeByteRet := {0xc2, 0xca}
+
+func CollectJumpInstruction(mode int, addr uintptr) (uint64) {
+    funcPrologue := funcPrologue64
+    if mode == 32 {
+        funcPrologue = funcPrologue32
+    }
+
+    prologueLen := len(funcPrologue)
+    code := makeSliceFromPointer(addr, 16) // instruction takes at most 16 bytes
+
+    // don't use bytes.Index() as addr may be the last function, which not followed by another function.
+    // thus will never find next prologue
+
+    if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
+        return 0
+    }
+
+    curAddr := addr + prologueLen
+
+    for {
+        code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
+        if bytes.Equal(funcPrologue, code[:prologueLen]) {
+            return curAddr
+        }
+
+		inst, err := x86asm.Decode(code, mode)
+		if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(d[0])) {
+            return curAddr
+		}
+
+        curAddr += inst.Len()
+    }
+
+    panic("search function prologue failed")
+    return 0
+}
+
+func FindFuncEnd(addr uintptr) uintptr {
+	sz := 0
+	if elfInfo != nil {
+		sz = elfInfo.GetFuncSize(addr)
+	}
+
+	if sz == 0 {
+	}
+
+	return addr + sz
+}
+
+func TransformInstruction(code []byte, fs, fe uintptr) []byte {
+	// TODO: 
+    // fix relative jmp instruction.
+	// call jmp jne jge etc.
+    // ret instruction with code
+
+    if fs >= fe {
+        panic("invalid function start/end addr")
+    }
+
 	ret := make([]byte, len(code))
 	copy(ret, code)
 
@@ -105,29 +208,29 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 			byte(to >> 24),
 			0xc3, // retn
 		}
-    } else if mode == 64 {
-        // push does operate on 64bit imm, workarounds are:
-        // 1. move to some register(eg, %rdx), then push %rdx, overwriting register may cause problem if not handled carefully.
-        // 2. push twice, preferred.
-        /*
-        return []byte{
-            0x48, // prefix
-            0xba, // mov to %rdx
-            byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
-            byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
-            0x52, // push %rdx
-            0xc3, // retn
-        }
-        */
-        return []byte {
-            0x68,//push
-            byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
-            0xc7, 0x44, 0x24,// mov $value, -4%rsp
-            0xfc, // rsp - 4
-            byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
-            0xc3, // retn
-        }
-    } else {
+	} else if mode == 64 {
+		// push does not operate on 64bit imm, workarounds are:
+		// 1. move to register(eg, %rdx), then push %rdx, however, overwriting register may cause problem if not handled carefully.
+		// 2. push twice, preferred.
+		/*
+		   return []byte{
+		       0x48, // prefix
+		       0xba, // mov to %rdx
+		       byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
+		       byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
+		       0x52, // push %rdx
+		       0xc3, // retn
+		   }
+		*/
+		return []byte{
+			0x68, //push
+			byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
+			0xc7, 0x44, 0x24, // mov $value, -4%rsp
+			0xfc, // rsp - 4
+			byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
+			0xc3, // retn
+		}
+	} else {
 		panic("invalid mode")
 	}
 }
@@ -138,7 +241,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (original []byt
 	insLen := len(jumpcode)
 	if trampoline != uintptr(0) {
 		f := makeSliceFromPointer(target, len(jumpcode)*2)
-		insLen = GetInsLenGreaterThan(f, len(jumpcode))
+		insLen = GetInsLenGreaterThan(mode, f, len(jumpcode))
 	}
 
 	// target slice
@@ -150,11 +253,10 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (original []byt
 	CopyInstruction(target, jumpcode)
 
 	if trampoline != uintptr(0) {
-		code := TransformInstruction(original)
-
+		target_end := FindFuncEnd(target)
+		code := TransformInstruction(original, target, target_end)
 		CopyInstruction(trampoline, code)
 		jumpcode := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
-
 		CopyInstruction(trampoline+uintptr(insLen), jumpcode)
 	}
 
