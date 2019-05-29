@@ -89,32 +89,100 @@ type JumpInstruction struct {
     inst x86asm.Inst
 }
 
-// relative jmp instruction: jmp, call
+// ======================condition jump instruction========================
 // JA JAE JB JBE JCXZ JE JECXZ JG JGE JL JLE JMP JNE JNO JNP JNS JO JP JRCXZ JS
 
 // one byte opcode, one byte relative offset
 twoByteCondJmp := {0x70,0x71,0x72,0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7a,0x7b,0x7c,0x7d,0x7e,0x7f,0xe3}
-
 // two byte opcode, four byte relative offset
 sixByteCondJmp := {0x0f80,0x0f81,0x0f82,0x0f83,0x0f84,0x0f85,0x0f86,0x0f87,0x0f88,0x0f89,0x0f8a,0x0f8b,0x0f8c,0x0f8d,0x0f8e,0x0f8f}
 
+
+// ====================== jump instruction========================
 // one byte opcode, one byte relative offset
 twoByteJmp := {0xeb}
-
 // one byte opcode, four byte relative offset
 fiveByteJmp := {0xe9}
 
 
+// ====================== call instruction========================
 // one byte opcode, 4 byte relative offset
 fiveByteCall := {0xe8}
 
+
+// ====================== ret instruction========================
 // return instruction, no operand
 oneByteRet := {0xc3, 0xcb}
-
 // return instruction, one byte opcode, 2 byte operand
 threeByteRet := {0xc2, 0xca}
 
-func CollectJumpInstruction(mode int, addr uintptr) (uint64) {
+
+const {
+    FT_CondJmp = 1
+    FT_JMP = 2
+    FT_CALL = 3
+    FT_RET = 4
+    FT_OTHER = 5
+    FT_INVALID = 6
+}
+
+func FixOneInstruction(mode int, addr uintptr, code []byte, to uintptr, to_sz int) (int, FixType) {
+    if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
+        // two byte condition jump
+        // TODO
+        return (2, FT_CondJmp)
+    }
+
+    if code[0] == 0x0f && (code[1] >= 0x80 && code[1] <= 0x8f) {
+        // six byte condition jump
+        // TODO
+        return (6, FT_CondJmp)
+    }
+
+    if code[0] == 0xeb {
+        // two byte jmp
+        // TODO
+        return (2, FT_JMP)
+    }
+
+    if code[0] == 0xe9 {
+        // five byte jmp
+        // TODO
+        return (5, FT_JMP)
+    }
+
+    if code[0] == 0xe8 {
+        // five byte call
+        // TODO
+        return (5, FT_CALL)
+    }
+
+    if code[0] == 0xc3 || code[0] == 0xcb {
+        // one byte ret
+        // TODO
+        return (1, FT_RET)
+    }
+
+    if code[0] == 0xc2 || code[0] == 0xca {
+        // three byte ret
+        // TODO
+        return (3, FT_RET)
+    }
+
+    inst, err := x86asm.Decode(code, mode)
+    if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(d[0])) {
+        return (0, FT_INVALID)
+    }
+
+    len := inst.Len()
+    return (len, FT_OTHER)
+}
+
+// FixJmpCode fix function code starting at address [start]
+// parameter 'end' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
+// 'to' specifys a new location, to which 'move_sz' bytes instruction will be copied
+// since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
+func FixJmpCode(mode int, start, end uintptr, to uintptr, move_sz int) {
     funcPrologue := funcPrologue64
     if mode == 32 {
         funcPrologue = funcPrologue32
@@ -129,6 +197,8 @@ func CollectJumpInstruction(mode int, addr uintptr) (uint64) {
     if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
         return 0
     }
+
+    sz, ft := FixOneInstruction(mode, addr, code, to, move_sz)
 
     curAddr := addr + prologueLen
 
