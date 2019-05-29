@@ -80,7 +80,6 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	// 2. otherwise, push target, then ret
 
 	relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
-
 	if relative {
 		var dis uint32
 		if to > from {
@@ -106,23 +105,29 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 			byte(to >> 24),
 			0xc3, // retn
 		}
-	} else if mode == 64 {
-		// no push 64imm instruction, so push to %rdx
-		return []byte{
-			0x48, // prefix
-			0xba, // mov to %rdx
-			byte(to),
-			byte(to >> 8),
-			byte(to >> 16),
-			byte(to >> 24),
-			byte(to >> 32),
-			byte(to >> 40),
-			byte(to >> 48),
-			byte(to >> 56),
-			0x52, // push %rdx
-			0xc3, // retn
-		}
-	} else {
+    } else if mode == 64 {
+        // push does operate on 64bit imm, workarounds are:
+        // 1. move to some register(eg, %rdx), then push %rdx, overwriting register may cause problem if not handled carefully.
+        // 2. push twice, preferred.
+        /*
+        return []byte{
+            0x48, // prefix
+            0xba, // mov to %rdx
+            byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
+            byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
+            0x52, // push %rdx
+            0xc3, // retn
+        }
+        */
+        return []byte {
+            0x68,//push
+            byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
+            0xc7, 0x44, 0x24,// mov $value, -4%rsp
+            0xfc, // rsp - 4
+            byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
+            0xc3, // retn
+        }
+    } else {
 		panic("invalid mode")
 	}
 }
