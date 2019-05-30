@@ -53,14 +53,14 @@ func (ei *ElfInfo) init() error {
 	return nil
 }
 
-func (ei *ElfInfo) GetFuncSize(addr uintptr) (uint64, error) {
+func (ei *ElfInfo) GetFuncSize(addr uintptr) (uint32, error) {
 	if ei.Symbol == nil {
 		return 0, errors.New("no symbol")
 	}
 
 	i := sort.Search(len(ei.Symbol), func(i int) bool { return ei.Symbol[i].Value >= uint64(addr) })
 	if i < len(ei.Symbol) && ei.Symbol[i].Value == uint64(addr) {
-		return ei.Symbol[i].Size, nil
+		return uint32(ei.Symbol[i].Size), nil
 	}
 
 	return 0, errors.New("can not find func")

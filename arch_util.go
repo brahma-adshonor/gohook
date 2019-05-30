@@ -2,9 +2,9 @@ package hook
 
 import (
 	"bytes"
+	"errors"
 	"golang.org/x/arch/x86/x86asm"
 	"math"
-	"reflect"
 	"syscall"
 )
 
@@ -24,7 +24,7 @@ var (
 	// one byte opcode, one byte relative offset
 	twoByteCondJmp = []byte{0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f, 0xe3}
 	// two byte opcode, four byte relative offset
-	sixByteCondJmp = []byte{0x0f80, 0x0f81, 0x0f82, 0x0f83, 0x0f84, 0x0f85, 0x0f86, 0x0f87, 0x0f88, 0x0f89, 0x0f8a, 0x0f8b, 0x0f8c, 0x0f8d, 0x0f8e, 0x0f8f}
+	sixByteCondJmp = []uint16{0x0f80, 0x0f81, 0x0f82, 0x0f83, 0x0f84, 0x0f85, 0x0f86, 0x0f87, 0x0f88, 0x0f89, 0x0f8a, 0x0f8b, 0x0f8c, 0x0f8d, 0x0f8e, 0x0f8f}
 
 	// ====================== jump instruction========================
 	// one byte opcode, one byte relative offset
@@ -107,14 +107,14 @@ func GetInsLenGreaterThan(mode int, data []byte, least int) int {
 
 func calcOffset(startAddr, curAddr, to uintptr, to_sz int, offset int32) int32 {
 	newAddr := curAddr
-	absAddr := curAddr + 2 + offset
+	absAddr := curAddr + 2 + uintptr(offset)
 
-	if curAddr < startAddr+to_sz {
-		newAddr = to + int32(curAddr-startAddr)
+	if curAddr < startAddr+uintptr(to_sz) {
+		newAddr = to + (curAddr - startAddr)
 	}
 
-	if absAddr >= startAddr && absAddr < startAddr+to_sz {
-		absAddr = to + int32(absAddr-startAddr)
+	if absAddr >= startAddr && absAddr < startAddr+uintptr(to_sz) {
+		absAddr = to + (absAddr - startAddr)
 	}
 
 	return int32(absAddr - newAddr - 2)
@@ -166,7 +166,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		nc[2] = byte(off >> 8)
 		nc[3] = byte(off >> 16)
 		nc[4] = byte(off >> 24)
-		return 5, FT_CALL
+		return 5, FT_CALL, nc
 	}
 
 	// ret instruction just return, no fix is needed.
@@ -181,11 +181,11 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	}
 
 	inst, err := x86asm.Decode(code, mode)
-	if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(d[0])) {
-		return 0, FT_INVALID
+	if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(code[0])) {
+		return 0, FT_INVALID, nc
 	}
 
-	sz := inst.Len()
+	sz := inst.Len
 	return sz, FT_OTHER, nc
 }
 
@@ -193,18 +193,18 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 // parameter 'funcSz' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
 // 'to' specifys a new location, to which 'move_sz' bytes instruction will be copied
 // since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
-func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz int) ([]CodeFix, error) {
+func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_sz int) ([]CodeFix, error) {
 	funcPrologue := funcPrologue64
 	if mode == 32 {
 		funcPrologue = funcPrologue32
 	}
 
 	prologueLen := len(funcPrologue)
-	code := makeSliceFromPointer(addr, 16) // instruction takes at most 16 bytes
+	code := makeSliceFromPointer(start, 16) // instruction takes at most 16 bytes
 
 	fix := make([]CodeFix, 0, 64)
 
-	// don't use bytes.Index() as addr may be the last function, which not followed by another function.
+	// don't use bytes.Index() as 'start' may be the last function, which not followed by another function.
 	// thus will never find next prologue
 
 	if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
@@ -212,7 +212,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 	}
 
 	curSz := 0
-	curAddr := addr + curSz
+	curAddr := start
 
 	for {
 		if curSz >= move_sz {
@@ -220,7 +220,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 		}
 
 		code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
-		sz, ft, nc := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
+		sz, ft, nc := FixOneInstruction(mode, start, curAddr, code, to, move_sz)
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
 			return nil, errors.New("ivalid instruction scanned")
@@ -235,11 +235,11 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 		}
 
 		curSz += sz
-		curAddr = addr + curSz
+		curAddr = start + uintptr(curSz)
 	}
 
 	for {
-		if funcSz > 0 && curAddr >= funcSz {
+		if funcSz > 0 && uint32(curAddr - start) >= funcSz {
 			break
 		}
 
@@ -248,7 +248,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 			break
 		}
 
-		sz, ft, nc := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
+		sz, ft, nc := FixOneInstruction(mode, start, curAddr, code, to, move_sz)
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
 			break
@@ -259,7 +259,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 		}
 
 		curSz += sz
-		curAddr = addr + curSz
+		curAddr = start + uintptr(curSz)
 	}
 
 	return fix, nil
