@@ -105,61 +105,79 @@ func GetInsLenGreaterThan(mode int, data []byte, least int) int {
 	return curLen
 }
 
+func calcOffset(startAddr, curAddr, to uintptr, to_sz int, offset int32) int32 {
+	newAddr := curAddr
+	absAddr := curAddr + 2 + offset
+
+	if curAddr < startAddr+to_sz {
+		newAddr = to + int32(curAddr-startAddr)
+	}
+
+	if absAddr >= startAddr && absAddr < startAddr+to_sz {
+		absAddr = to + int32(absAddr-startAddr)
+	}
+
+	return int32(absAddr - newAddr - 2)
+}
+
 func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uintptr, to_sz int) (int, int, []byte) {
-    nc := make([]byte, len(code))
-    copy(nc, code)
+	nc := make([]byte, len(code))
+	copy(nc, code)
 
 	if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		// two byte condition jump
-        newAddr := curAddr
-		absAddr := curAddr + 2 + int8(code[1])
-
-        if curAddr < startAddr + to_sz {
-            newAddr = to + int(curAddr - startAddr)
-        }
-
-        if absAddr >= startAddr && absAddr < startAddr + to_sz {
-            absAddr = to + int(absAddr - startAddr)
-        }
-
-        nc[1] = byte(absAddr - newAddr - 2)
-
+		nc[1] = byte(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
 		return 2, FT_CondJmp, nc
 	}
 
 	if code[0] == 0x0f && (code[1] >= 0x80 && code[1] <= 0x8f) {
 		// six byte condition jump
-		// TODO
-		return 6, FT_CondJmp
+		off := (uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24))
+		off = uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off)))
+		nc[2] = byte(off)
+		nc[3] = byte(off >> 8)
+		nc[4] = byte(off >> 16)
+		nc[5] = byte(off >> 24)
+		return 6, FT_CondJmp, nc
 	}
 
 	if code[0] == 0xeb {
 		// two byte jmp
-		// TODO
-		return 2, FT_JMP
+		nc[1] = byte(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
+		return 2, FT_JMP, nc
 	}
 
 	if code[0] == 0xe9 {
 		// five byte jmp
-		// TODO
-		return 5, FT_JMP
+		off := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
+		off = uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off)))
+		nc[1] = byte(off)
+		nc[2] = byte(off >> 8)
+		nc[3] = byte(off >> 16)
+		nc[4] = byte(off >> 24)
+		return 5, FT_JMP, nc
 	}
 
 	if code[0] == 0xe8 {
 		// five byte call
-		// TODO
+		off := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
+		off = uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off)))
+		nc[1] = byte(off)
+		nc[2] = byte(off >> 8)
+		nc[3] = byte(off >> 16)
+		nc[4] = byte(off >> 24)
 		return 5, FT_CALL
 	}
 
 	// ret instruction just return, no fix is needed.
 	if code[0] == 0xc3 || code[0] == 0xcb {
 		// one byte ret
-		return 1, FT_RET
+		return 1, FT_RET, nc
 	}
 
 	if code[0] == 0xc2 || code[0] == 0xca {
 		// three byte ret
-		return 3, FT_RET
+		return 3, FT_RET, nc
 	}
 
 	inst, err := x86asm.Decode(code, mode)
@@ -167,8 +185,8 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		return 0, FT_INVALID
 	}
 
-	len := inst.Len()
-	return len, FT_OTHER
+	sz := inst.Len()
+	return sz, FT_OTHER, nc
 }
 
 // FixTargetFuncCode fix function code starting at address [start]
@@ -212,7 +230,9 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 			return nil, errors.New("ret instruction in patching erea is not allowed")
 		}
 
-		fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+		if ft != FT_OTHER {
+			fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+		}
 
 		curSz += sz
 		curAddr = addr + curSz
@@ -234,7 +254,9 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 			break
 		}
 
-		fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+		if ft != FT_OTHER && ft != FT_RET {
+			fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+		}
 
 		curSz += sz
 		curAddr = addr + curSz
