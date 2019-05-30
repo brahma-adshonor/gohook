@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"syscall"
 	"unsafe"
-    "fmt"
+    //"fmt"
 )
 
 type CodeInfo struct {
@@ -48,9 +48,15 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
             sz, _ = elfInfo.GetFuncSize(target)
 		}
 
-        fmt.Println("target:%x,replace:%x,trampoline:%x,sz:%d",target,replace,trampoline,sz)
+        /*
+        fmt.Printf("target:%x,replace:%x,trampoline:%x,sz:%d,insLen:%d,jumpcode:",target,replace,trampoline,sz, insLen)
+        for _,c := range(jumpcode) {
+            fmt.Printf(" 0x%x", c)
+        }
+        fmt.Printf("\n")
+        */
 
-		if len(jumpcode) > 5 /*|| sz > 0*/ {
+		if len(jumpcode) > 5 || sz > 0 {
 			//if size of jumpcode == 5, there is no chance we will mess up with jmp instruction
 			//in this case we better dont fix code if we can not get function size
 			fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
@@ -72,8 +78,8 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 	CopyInstruction(target, jumpcode)
 
 	if trampoline != uintptr(0) {
-		CopyInstruction(trampoline, ts)
-		jumpcode := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
+		CopyInstruction(trampoline, info.Origin)
+		jumpcode = genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
 		CopyInstruction(trampoline+uintptr(insLen), jumpcode)
 	}
 

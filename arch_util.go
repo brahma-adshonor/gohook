@@ -273,7 +273,7 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	if relative {
 		var dis uint32
 		if to > from {
-			dis = uint32(int32(to-from) + 5)
+			dis = uint32(int32(to-from) - 5)
 		} else {
 			dis = uint32(-int32(from-to) - 5)
 		}
