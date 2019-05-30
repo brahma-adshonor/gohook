@@ -67,7 +67,7 @@ func main() {
 
 	fmt.Printf("\n")
 
-	fullInstLen := hook.GetInsLenGreaterThan(code, 11)
+	fullInstLen := hook.GetInsLenGreaterThan(64, code, 11)
 	fmt.Printf("full inst len:%d\n", fullInstLen)
 }
 
