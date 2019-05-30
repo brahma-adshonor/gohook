@@ -8,7 +8,7 @@ import (
 
 type HookInfo struct {
 	Mode        int
-	Original    []byte
+	Info        *CodeInfo
 	Target      reflect.Value
 	Replacement reflect.Value
 	Trampoline  reflect.Value
@@ -30,18 +30,6 @@ func UnHook(target interface{}) error {
 	return doUnHook(t.Pointer())
 }
 
-func doUnHook(target uintptr) error {
-	info, ok := g_all[target]
-	if !ok {
-		return errors.New("target not exist")
-	}
-
-	CopyInstruction(target, info.Original)
-	delete(g_all, target)
-
-	return nil
-}
-
 func HookInstanceMethod(mode int, target reflect.Type, method string, replacement, trampoline interface{}) error {
 	m, ok := target.MethodByName(method)
 	if !ok {
@@ -59,6 +47,22 @@ func UnHookInstanceMethod(target reflect.Type, methodName string) error {
 	}
 
 	return UnHook(m.Func)
+}
+
+func doUnHook(target uintptr) error {
+	info, ok := g_all[target]
+	if !ok {
+		return errors.New("target not exist")
+	}
+
+	CopyInstruction(target, info.Info.Origin)
+	for _, v := range info.Info.Fix {
+		CopyInstruction(v.Addr, v.Code)
+	}
+
+	delete(g_all, target)
+
+	return nil
 }
 
 func doHook(mode int, target, replacement, trampoline reflect.Value) error {
@@ -89,10 +93,10 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) error {
 
 	doUnHook(target.Pointer())
 
-	bytes, err := hookFunction(mode, target.Pointer(), replacement.Pointer(), tp)
+	info, err := hookFunction(mode, target.Pointer(), replacement.Pointer(), tp)
 	if err != nil {
 		return err
 	}
 
-	g_all[target.Pointer()] = HookInfo{Mode: mode, Original: bytes, Target: target, Replacement: replacement, Trampoline: trampoline}
+	g_all[target.Pointer()] = HookInfo{Mode: mode, Info: info, Target: target, Replacement: replacement, Trampoline: trampoline}
 }

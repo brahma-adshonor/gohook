@@ -8,6 +8,11 @@ import (
 	"syscall"
 )
 
+type CodeFix struct {
+	Code []byte
+	Addr uintptr
+}
+
 var (
 	elfInfo, _     = NewElfInfo()
 	funcPrologue32 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x8d, 0x44, 0x24, 0xe0} //FIXME
@@ -100,11 +105,26 @@ func GetInsLenGreaterThan(mode int, data []byte, least int) int {
 	return curLen
 }
 
-func FixOneInstruction(mode int, startAddr, addr uintptr, code []byte, to uintptr, to_sz int) (int, int) {
+func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uintptr, to_sz int) (int, int, []byte) {
+    nc := make([]byte, len(code))
+    copy(nc, code)
+
 	if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		// two byte condition jump
-		// TODO
-		return 2, FT_CondJmp
+        newAddr := curAddr
+		absAddr := curAddr + 2 + int8(code[1])
+
+        if curAddr < startAddr + to_sz {
+            newAddr = to + int(curAddr - startAddr)
+        }
+
+        if absAddr >= startAddr && absAddr < startAddr + to_sz {
+            absAddr = to + int(absAddr - startAddr)
+        }
+
+        nc[1] = byte(absAddr - newAddr - 2)
+
+		return 2, FT_CondJmp, nc
 	}
 
 	if code[0] == 0x0f && (code[1] >= 0x80 && code[1] <= 0x8f) {
@@ -155,7 +175,7 @@ func FixOneInstruction(mode int, startAddr, addr uintptr, code []byte, to uintpt
 // parameter 'funcSz' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
 // 'to' specifys a new location, to which 'move_sz' bytes instruction will be copied
 // since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
-func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz int) error {
+func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz int) ([]CodeFix, error) {
 	funcPrologue := funcPrologue64
 	if mode == 32 {
 		funcPrologue = funcPrologue32
@@ -164,11 +184,13 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 	prologueLen := len(funcPrologue)
 	code := makeSliceFromPointer(addr, 16) // instruction takes at most 16 bytes
 
+	fix := make([]CodeFix, 0, 64)
+
 	// don't use bytes.Index() as addr may be the last function, which not followed by another function.
 	// thus will never find next prologue
 
 	if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
-		return 0
+		return nil, errors.New("invalid func prologue")
 	}
 
 	curSz := 0
@@ -180,15 +202,17 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 		}
 
 		code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
-		sz, ft := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
+		sz, ft, nc := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
-			return errors.New("ivalid instruction scanned")
+			return nil, errors.New("ivalid instruction scanned")
 		}
 
 		if ft == FT_RET {
-			return errors.New("ret instruction in patching erea is not allowed")
+			return nil, errors.New("ret instruction in patching erea is not allowed")
 		}
+
+		fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
 
 		curSz += sz
 		curAddr = addr + curSz
@@ -204,17 +228,19 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz 
 			break
 		}
 
-		sz, ft := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
+		sz, ft, nc := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
 			break
 		}
 
+		fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+
 		curSz += sz
 		curAddr = addr + curSz
 	}
 
-	return nil
+	return fix, nil
 }
 
 func genJumpCode(mode int, to, from uintptr) []byte {
