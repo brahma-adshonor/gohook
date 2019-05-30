@@ -43,7 +43,13 @@ func (ei *ElfInfo) init() error {
 
 	var sym []elf.Symbol
 	sym, err = f.Symbols()
-	ei.Symbol = SymbolSlice(sym)
+    ei.Symbol = make(SymbolSlice, 0, len(sym))
+
+    for _, v := range sym {
+        if v.Size > 0 {
+            ei.Symbol = append(ei.Symbol, v)
+        }
+    }
 
 	if err != nil {
 		return err
@@ -58,10 +64,12 @@ func (ei *ElfInfo) GetFuncSize(addr uintptr) (uint32, error) {
 		return 0, errors.New("no symbol")
 	}
 
-	i := sort.Search(len(ei.Symbol), func(i int) bool { return ei.Symbol[i].Value >= uint64(addr) })
+    i := sort.Search(len(ei.Symbol), func(i int) bool { return ei.Symbol[i].Value >= uint64(addr) })
 	if i < len(ei.Symbol) && ei.Symbol[i].Value == uint64(addr) {
+        //fmt.Printf("addr:0x%x,value:0x%x, sz:%d\n", addr, ei.Symbol[i].Value, ei.Symbol[i].Size)
 		return uint32(ei.Symbol[i].Size), nil
 	}
 
+    //fmt.Printf("not find elf\n")
 	return 0, errors.New("can not find func")
 }

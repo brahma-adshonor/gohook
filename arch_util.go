@@ -50,6 +50,7 @@ const (
 	FT_RET     = 4
 	FT_OTHER   = 5
 	FT_INVALID = 6
+    FT_SKIP    = 7
 )
 
 func SetFuncPrologue(mode int, data []byte) {
@@ -126,57 +127,81 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 
 	if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		// two byte condition jump
-		nc[1] = byte(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
-		return 2, FT_CondJmp, nc
+        nc = nc[:2]
+        off := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
+        if off != uint32(nc[1]) {
+            nc[1] = byte(off)
+            return 2, FT_CondJmp, nc
+        }
+        return 2, FT_SKIP, nil
 	}
 
 	if code[0] == 0x0f && (code[1] >= 0x80 && code[1] <= 0x8f) {
 		// six byte condition jump
-		off := (uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24))
-		off = uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off)))
-		nc[2] = byte(off)
-		nc[3] = byte(off >> 8)
-		nc[4] = byte(off >> 16)
-		nc[5] = byte(off >> 24)
-		return 6, FT_CondJmp, nc
+        nc = nc[:6]
+		off1 := (uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24))
+        off2 := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+        if off1 != off2 {
+            nc[2] = byte(off2)
+            nc[3] = byte(off2 >> 8)
+            nc[4] = byte(off2 >> 16)
+            nc[5] = byte(off2 >> 24)
+            return 6, FT_CondJmp, nc
+        }
+        return 6, FT_SKIP, nc
 	}
 
 	if code[0] == 0xeb {
 		// two byte jmp
-		nc[1] = byte(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
-		return 2, FT_JMP, nc
+        nc = nc[:2]
+        off := byte(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
+        if off != nc[1] {
+            nc[1] = off
+            return 2, FT_JMP, nc
+        }
+        return 2, FT_SKIP, nc
 	}
 
 	if code[0] == 0xe9 {
 		// five byte jmp
-		off := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-		off = uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off)))
-		nc[1] = byte(off)
-		nc[2] = byte(off >> 8)
-		nc[3] = byte(off >> 16)
-		nc[4] = byte(off >> 24)
-		return 5, FT_JMP, nc
+        nc = nc[:5]
+		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
+        off2 := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+        if off1 != off2 {
+            nc[1] = byte(off2)
+            nc[2] = byte(off2 >> 8)
+            nc[3] = byte(off2 >> 16)
+            nc[4] = byte(off2 >> 24)
+            return 5, FT_JMP, nc
+        }
+        return 5, FT_SKIP, nc
 	}
 
 	if code[0] == 0xe8 {
 		// five byte call
-		off := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-		off = uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off)))
-		nc[1] = byte(off)
-		nc[2] = byte(off >> 8)
-		nc[3] = byte(off >> 16)
-		nc[4] = byte(off >> 24)
-		return 5, FT_CALL, nc
+        nc = nc[:5]
+		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
+        off2 := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+        if off1 != off2 {
+            nc[1] = byte(off2)
+            nc[2] = byte(off2 >> 8)
+            nc[3] = byte(off2 >> 16)
+            nc[4] = byte(off2 >> 24)
+            return 5, FT_CALL, nc
+        }
+        return 5, FT_SKIP, nc
 	}
 
 	// ret instruction just return, no fix is needed.
 	if code[0] == 0xc3 || code[0] == 0xcb {
 		// one byte ret
+        nc = nc[:1]
 		return 1, FT_RET, nc
 	}
 
 	if code[0] == 0xc2 || code[0] == 0xca {
 		// three byte ret
+        nc = nc[:3]
 		return 3, FT_RET, nc
 	}
 
@@ -186,6 +211,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	}
 
 	sz := inst.Len
+    nc = nc[:sz]
 	return sz, FT_OTHER, nc
 }
 
