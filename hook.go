@@ -100,6 +100,5 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) error {
 
 	g_all[target.Pointer()] = HookInfo{Mode: mode, Info: info, Target: target, Replacement: replacement, Trampoline: trampoline}
 
-    return nil
+	return nil
 }
-

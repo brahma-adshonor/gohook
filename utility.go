@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"syscall"
 	"unsafe"
-    // "fmt"
+	// "fmt"
 )
 
 type CodeInfo struct {
@@ -45,16 +45,16 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 	if trampoline != uintptr(0) {
 		sz := uint32(0)
 		if elfInfo != nil {
-            sz, _ = elfInfo.GetFuncSize(target)
+			sz, _ = elfInfo.GetFuncSize(target)
 		}
 
-        /*
-        fmt.Printf("target:%x,replace:%x,trampoline:%x,sz:%d,insLen:%d,jumpcode:",target,replace,trampoline,sz, insLen)
-        for _,c := range(jumpcode) {
-            fmt.Printf(" 0x%x", c)
-        }
-        fmt.Printf("\n")
-        */
+		/*
+		   fmt.Printf("target:%x,replace:%x,trampoline:%x,sz:%d,insLen:%d,jumpcode:",target,replace,trampoline,sz, insLen)
+		   for _,c := range(jumpcode) {
+		       fmt.Printf(" 0x%x", c)
+		   }
+		   fmt.Printf("\n")
+		*/
 
 		if len(jumpcode) > 5 || sz > 0 {
 			//if size of jumpcode == 5, there is no chance we will mess up with jmp instruction
@@ -70,19 +70,19 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 				f := make([]byte, len(v.Code))
 				copy(f, origin)
 
-                /*
-                // test code
-                fmt.Printf("addr:0x%x, code:", v.Addr)
-                for _, c := range v.Code {
-                    fmt.Printf(" %x", c)
-                }
-                fmt.Printf(", origin:")
-                for _, c := range f {
-                    fmt.Printf(" %x", c)
-                }
-                fmt.Printf("\n")
-                // end test code
-                */
+				/*
+				   // test code
+				   fmt.Printf("addr:0x%x, code:", v.Addr)
+				   for _, c := range v.Code {
+				       fmt.Printf(" %x", c)
+				   }
+				   fmt.Printf(", origin:")
+				   for _, c := range f {
+				       fmt.Printf(" %x", c)
+				   }
+				   fmt.Printf("\n")
+				   // end test code
+				*/
 
 				CopyInstruction(v.Addr, v.Code)
 				v.Code = f

@@ -35,47 +35,46 @@ func TestAsm(t *testing.T) {
 }
 
 func TestGetInsLenGreaterThan(t *testing.T) {
-    c1 := []byte{0x64,0x48,0x8b,0x0c,0x25,0xf8}
-    c2 := []byte{0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff}
+	c1 := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8}
+	c2 := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff}
 
-    r1 := GetInsLenGreaterThan(64, c1, len(c1) - 2)
-    assert.Equal(t, 0, r1)
-    r2 := GetInsLenGreaterThan(64, c2, len(c2) - 2)
-    assert.Equal(t, len(c2), r2)
-    r22 := GetInsLenGreaterThan(64, c2, len(c2))
-    assert.Equal(t, len(c2), r22)
-    r23 := GetInsLenGreaterThan(64, c2, len(c2) + 2)
-    assert.Equal(t, 0, r23)
+	r1 := GetInsLenGreaterThan(64, c1, len(c1)-2)
+	assert.Equal(t, 0, r1)
+	r2 := GetInsLenGreaterThan(64, c2, len(c2)-2)
+	assert.Equal(t, len(c2), r2)
+	r22 := GetInsLenGreaterThan(64, c2, len(c2))
+	assert.Equal(t, len(c2), r22)
+	r23 := GetInsLenGreaterThan(64, c2, len(c2)+2)
+	assert.Equal(t, 0, r23)
 
-    c3 := []byte{0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x3b,0x41,0x10}
-    r3 := GetInsLenGreaterThan(64, c3, len(c2) + 2)
-    assert.Equal(t, len(c3), r3)
-    r32 := GetInsLenGreaterThan(64, c3, len(c2) - 2)
-    assert.Equal(t, len(c2), r32)
+	c3 := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x3b, 0x41, 0x10}
+	r3 := GetInsLenGreaterThan(64, c3, len(c2)+2)
+	assert.Equal(t, len(c3), r3)
+	r32 := GetInsLenGreaterThan(64, c3, len(c2)-2)
+	assert.Equal(t, len(c2), r32)
 }
 
 func TestFixOneInstruction(t *testing.T) {
-    c1 := []byte{0x75,0x40}
-    l1, t1, r1 := FixOneInstruction(64, 10, 12, c1, 100, 8)
+	c1 := []byte{0x75, 0x40}
+	l1, t1, r1 := FixOneInstruction(64, 10, 12, c1, 100, 8)
 
-    assert.Equal(t, 2, l1)
-    assert.Equal(t, FT_CondJmp, t1)
-    assert.Equal(t, c1[0], r1[0])
-    assert.Equal(t, int8(-26), int8(r1[1]))
+	assert.Equal(t, 2, l1)
+	assert.Equal(t, FT_CondJmp, t1)
+	assert.Equal(t, c1[0], r1[0])
+	assert.Equal(t, int8(-26), int8(r1[1]))
 
-    l2, t2, r2 := FixOneInstruction(64, 10, 12, c1, 26, 8)
+	l2, t2, r2 := FixOneInstruction(64, 10, 12, c1, 26, 8)
 
-    assert.Equal(t, 2, l2)
-    assert.Equal(t, FT_CondJmp, t2)
-    assert.Equal(t, c1[0], r2[0])
-    assert.Equal(t, int8(48), int8(r2[1]))
+	assert.Equal(t, 2, l2)
+	assert.Equal(t, FT_CondJmp, t2)
+	assert.Equal(t, c1[0], r2[0])
+	assert.Equal(t, int8(48), int8(r2[1]))
 
-    //overflow test
-    l3, t3, r3 := FixOneInstruction(64, 10, 12, c1, 1000, 8)
+	//overflow test
+	l3, t3, r3 := FixOneInstruction(64, 10, 12, c1, 1000, 8)
 
-    assert.Equal(t, 2, l3)
-    assert.Equal(t, FT_OVERFLOW, t3)
-    assert.Equal(t, c1[0], r3[0])
-    assert.Equal(t, c1[1], r3[1])
+	assert.Equal(t, 2, l3)
+	assert.Equal(t, FT_OVERFLOW, t3)
+	assert.Equal(t, c1[0], r3[0])
+	assert.Equal(t, c1[1], r3[1])
 }
-
