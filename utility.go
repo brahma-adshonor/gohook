@@ -1,28 +1,61 @@
 package hook
 
 import (
+	"bytes"
 	"golang.org/x/arch/x86/x86asm"
 	"math"
-    "bytes"
 	"reflect"
 	"syscall"
 	"unsafe"
 )
 
 var (
-	elfInfo, _ = NewElfInfo()
-    funcPrologue32 = []byte{0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x8d,0x44,0x24,0xe0}
-    funcPrologue64 = []byte{0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x8d,0x44,0x24,0xe0}
+	elfInfo, _     = NewElfInfo()
+	funcPrologue32 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x8d, 0x44, 0x24, 0xe0} //FIXME
+	funcPrologue64 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x8d, 0x44, 0x24, 0xe0}
+
+	// ======================condition jump instruction========================
+	// JA JAE JB JBE JCXZ JE JECXZ JG JGE JL JLE JMP JNE JNO JNP JNS JO JP JRCXZ JS
+
+	// one byte opcode, one byte relative offset
+	twoByteCondJmp = []byte{0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f, 0xe3}
+	// two byte opcode, four byte relative offset
+	sixByteCondJmp = []byte{0x0f80, 0x0f81, 0x0f82, 0x0f83, 0x0f84, 0x0f85, 0x0f86, 0x0f87, 0x0f88, 0x0f89, 0x0f8a, 0x0f8b, 0x0f8c, 0x0f8d, 0x0f8e, 0x0f8f}
+
+	// ====================== jump instruction========================
+	// one byte opcode, one byte relative offset
+	twoByteJmp = []byte{0xeb}
+	// one byte opcode, four byte relative offset
+	fiveByteJmp = []byte{0xe9}
+
+	// ====================== call instruction========================
+	// one byte opcode, 4 byte relative offset
+	fiveByteCall = []byte{0xe8}
+
+	// ====================== ret instruction========================
+	// return instruction, no operand
+	oneByteRet = []byte{0xc3, 0xcb}
+	// return instruction, one byte opcode, 2 byte operand
+	threeByteRet = []byte{0xc2, 0xca}
+)
+
+const (
+	FT_CondJmp = 1
+	FT_JMP     = 2
+	FT_CALL    = 3
+	FT_RET     = 4
+	FT_OTHER   = 5
+	FT_INVALID = 6
 )
 
 func SetFuncPrologue(mode int, data []byte) {
-    if mode == 32 {
-        funcPrologue32 = make([]byte, len(data))
-        copy(funcPrologue32, data)
-    } else {
-        funcPrologue64 = make([]byte, len(data))
-        copy(funcPrologue64, data)
-    }
+	if mode == 32 {
+		funcPrologue32 = make([]byte, len(data))
+		copy(funcPrologue32, data)
+	} else {
+		funcPrologue64 = make([]byte, len(data))
+		copy(funcPrologue64, data)
+	}
 }
 
 func makeSliceFromPointer(p uintptr, length int) []byte {
@@ -83,169 +116,121 @@ func GetInsLenGreaterThan(mode int, data []byte, least int) int {
 	return curLen
 }
 
+func FixOneInstruction(mode int, startAddr, addr uintptr, code []byte, to uintptr, to_sz int) (int, int) {
+	if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
+		// two byte condition jump
+		// TODO
+		return 2, FT_CondJmp
+	}
 
-type JumpInstruction struct {
-    addr uintptr
-    inst x86asm.Inst
+	if code[0] == 0x0f && (code[1] >= 0x80 && code[1] <= 0x8f) {
+		// six byte condition jump
+		// TODO
+		return 6, FT_CondJmp
+	}
+
+	if code[0] == 0xeb {
+		// two byte jmp
+		// TODO
+		return 2, FT_JMP
+	}
+
+	if code[0] == 0xe9 {
+		// five byte jmp
+		// TODO
+		return 5, FT_JMP
+	}
+
+	if code[0] == 0xe8 {
+		// five byte call
+		// TODO
+		return 5, FT_CALL
+	}
+
+	// ret instruction just return, no fix is needed.
+	if code[0] == 0xc3 || code[0] == 0xcb {
+		// one byte ret
+		return 1, FT_RET
+	}
+
+	if code[0] == 0xc2 || code[0] == 0xca {
+		// three byte ret
+		return 3, FT_RET
+	}
+
+	inst, err := x86asm.Decode(code, mode)
+	if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(d[0])) {
+		return 0, FT_INVALID
+	}
+
+	len := inst.Len()
+	return len, FT_OTHER
 }
 
-// ======================condition jump instruction========================
-// JA JAE JB JBE JCXZ JE JECXZ JG JGE JL JLE JMP JNE JNO JNP JNS JO JP JRCXZ JS
-
-// one byte opcode, one byte relative offset
-twoByteCondJmp := {0x70,0x71,0x72,0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7a,0x7b,0x7c,0x7d,0x7e,0x7f,0xe3}
-// two byte opcode, four byte relative offset
-sixByteCondJmp := {0x0f80,0x0f81,0x0f82,0x0f83,0x0f84,0x0f85,0x0f86,0x0f87,0x0f88,0x0f89,0x0f8a,0x0f8b,0x0f8c,0x0f8d,0x0f8e,0x0f8f}
-
-
-// ====================== jump instruction========================
-// one byte opcode, one byte relative offset
-twoByteJmp := {0xeb}
-// one byte opcode, four byte relative offset
-fiveByteJmp := {0xe9}
-
-
-// ====================== call instruction========================
-// one byte opcode, 4 byte relative offset
-fiveByteCall := {0xe8}
-
-
-// ====================== ret instruction========================
-// return instruction, no operand
-oneByteRet := {0xc3, 0xcb}
-// return instruction, one byte opcode, 2 byte operand
-threeByteRet := {0xc2, 0xca}
-
-
-const {
-    FT_CondJmp = 1
-    FT_JMP = 2
-    FT_CALL = 3
-    FT_RET = 4
-    FT_OTHER = 5
-    FT_INVALID = 6
-}
-
-func FixOneInstruction(mode int, addr uintptr, code []byte, to uintptr, to_sz int) (int, FixType) {
-    if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
-        // two byte condition jump
-        // TODO
-        return (2, FT_CondJmp)
-    }
-
-    if code[0] == 0x0f && (code[1] >= 0x80 && code[1] <= 0x8f) {
-        // six byte condition jump
-        // TODO
-        return (6, FT_CondJmp)
-    }
-
-    if code[0] == 0xeb {
-        // two byte jmp
-        // TODO
-        return (2, FT_JMP)
-    }
-
-    if code[0] == 0xe9 {
-        // five byte jmp
-        // TODO
-        return (5, FT_JMP)
-    }
-
-    if code[0] == 0xe8 {
-        // five byte call
-        // TODO
-        return (5, FT_CALL)
-    }
-
-    if code[0] == 0xc3 || code[0] == 0xcb {
-        // one byte ret
-        // TODO
-        return (1, FT_RET)
-    }
-
-    if code[0] == 0xc2 || code[0] == 0xca {
-        // three byte ret
-        // TODO
-        return (3, FT_RET)
-    }
-
-    inst, err := x86asm.Decode(code, mode)
-    if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(d[0])) {
-        return (0, FT_INVALID)
-    }
-
-    len := inst.Len()
-    return (len, FT_OTHER)
-}
-
-// FixJmpCode fix function code starting at address [start]
-// parameter 'end' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
+// FixTargetFuncCode fix function code starting at address [start]
+// parameter 'funcSz' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
 // 'to' specifys a new location, to which 'move_sz' bytes instruction will be copied
 // since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
-func FixJmpCode(mode int, start, end uintptr, to uintptr, move_sz int) {
-    funcPrologue := funcPrologue64
-    if mode == 32 {
-        funcPrologue = funcPrologue32
-    }
+func FixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz int) error {
+	funcPrologue := funcPrologue64
+	if mode == 32 {
+		funcPrologue = funcPrologue32
+	}
 
-    prologueLen := len(funcPrologue)
-    code := makeSliceFromPointer(addr, 16) // instruction takes at most 16 bytes
+	prologueLen := len(funcPrologue)
+	code := makeSliceFromPointer(addr, 16) // instruction takes at most 16 bytes
 
-    // don't use bytes.Index() as addr may be the last function, which not followed by another function.
-    // thus will never find next prologue
+	// don't use bytes.Index() as addr may be the last function, which not followed by another function.
+	// thus will never find next prologue
 
-    if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
-        return 0
-    }
+	if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
+		return 0
+	}
 
-    sz, ft := FixOneInstruction(mode, addr, code, to, move_sz)
+	curSz := 0
+	curAddr := addr + curSz
 
-    curAddr := addr + prologueLen
-
-    for {
-        code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
-        if bytes.Equal(funcPrologue, code[:prologueLen]) {
-            return curAddr
-        }
-
-		inst, err := x86asm.Decode(code, mode)
-		if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(d[0])) {
-            return curAddr
+	for {
+		if curSz >= move_sz {
+			break
 		}
 
-        curAddr += inst.Len()
-    }
+		code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
+		sz, ft := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
+		if sz == 0 && ft == FT_INVALID {
+			// the end or unrecognized instruction
+			return errors.New("ivalid instruction scanned")
+		}
 
-    panic("search function prologue failed")
-    return 0
-}
+		if ft == FT_RET {
+			return errors.New("ret instruction in patching erea is not allowed")
+		}
 
-func FindFuncEnd(addr uintptr) uintptr {
-	sz := 0
-	if elfInfo != nil {
-		sz = elfInfo.GetFuncSize(addr)
+		curSz += sz
+		curAddr = addr + curSz
 	}
 
-	if sz == 0 {
+	for {
+		if funcSz > 0 && curAddr >= funcSz {
+			break
+		}
+
+		code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
+		if bytes.Equal(funcPrologue, code[:prologueLen]) {
+			break
+		}
+
+		sz, ft := FixOneInstruction(mode, addr, curAddr, code, to, move_sz)
+		if sz == 0 && ft == FT_INVALID {
+			// the end or unrecognized instruction
+			break
+		}
+
+		curSz += sz
+		curAddr = addr + curSz
 	}
 
-	return addr + sz
-}
-
-func TransformInstruction(code []byte, fs, fe uintptr) []byte {
-	// TODO: 
-    // fix relative jmp instruction.
-	// call jmp jne jge etc.
-    // ret instruction with code
-
-    if fs >= fe {
-        panic("invalid function start/end addr")
-    }
-
-	ret := make([]byte, len(code))
-	copy(ret, code)
-
-	return ret
+	return nil
 }
 
 func genJumpCode(mode int, to, from uintptr) []byte {
@@ -305,7 +290,7 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	}
 }
 
-func hookFunction(mode int, target, replace, trampoline uintptr) (original []byte) {
+func hookFunction(mode int, target, replace, trampoline uintptr) ([]byte, error) {
 	jumpcode := genJumpCode(mode, replace, target)
 
 	insLen := len(jumpcode)
@@ -317,18 +302,28 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (original []byt
 	// target slice
 	ts := makeSliceFromPointer(target, insLen)
 	original = make([]byte, len(ts))
-
 	copy(original, ts)
+
+	if trampoline != uintptr(0) {
+		sz := 0
+		if elfInfo != nil {
+			sz = elfInfo.GetFuncSize(addr)
+		}
+
+		err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	CopyInstruction(target, jumpcode)
 
 	if trampoline != uintptr(0) {
 		target_end := FindFuncEnd(target)
-		code := TransformInstruction(original, target, target_end)
-		CopyInstruction(trampoline, code)
+		CopyInstruction(trampoline, ts)
 		jumpcode := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
 		CopyInstruction(trampoline+uintptr(insLen), jumpcode)
 	}
 
-	return
+	return original, nil
 }

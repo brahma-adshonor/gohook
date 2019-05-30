@@ -18,11 +18,11 @@ var (
 	g_all = make(map[uintptr]HookInfo)
 )
 
-func Hook(mode int, target, replacement, trampoline interface{}) {
+func Hook(mode int, target, replacement, trampoline interface{}) error {
 	t := reflect.ValueOf(target)
 	r := reflect.ValueOf(replacement)
 	t2 := reflect.ValueOf(trampoline)
-	doHook(mode, t, r, t2)
+	return doHook(mode, t, r, t2)
 }
 
 func UnHook(target interface{}) error {
@@ -42,14 +42,14 @@ func doUnHook(target uintptr) error {
 	return nil
 }
 
-func HookInstanceMethod(mode int, target reflect.Type, method string, replacement, trampoline interface{}) {
+func HookInstanceMethod(mode int, target reflect.Type, method string, replacement, trampoline interface{}) error {
 	m, ok := target.MethodByName(method)
 	if !ok {
 		panic(fmt.Sprintf("unknown method %s", method))
 	}
 	r := reflect.ValueOf(replacement)
 	t := reflect.ValueOf(trampoline)
-	doHook(mode, m.Func, r, t)
+	return doHook(mode, m.Func, r, t)
 }
 
 func UnHookInstanceMethod(target reflect.Type, methodName string) error {
@@ -61,7 +61,7 @@ func UnHookInstanceMethod(target reflect.Type, methodName string) error {
 	return UnHook(m.Func)
 }
 
-func doHook(mode int, target, replacement, trampoline reflect.Value) {
+func doHook(mode int, target, replacement, trampoline reflect.Value) error {
 	if target.Kind() != reflect.Func {
 		panic("target has to be a Func")
 	}
@@ -89,7 +89,10 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) {
 
 	doUnHook(target.Pointer())
 
-	bytes := hookFunction(mode, target.Pointer(), replacement.Pointer(), tp)
+	bytes, err := hookFunction(mode, target.Pointer(), replacement.Pointer(), tp)
+	if err != nil {
+		return err
+	}
 
 	g_all[target.Pointer()] = HookInfo{Mode: mode, Original: bytes, Target: target, Replacement: replacement, Trampoline: trampoline}
 }
