@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"syscall"
 	"unsafe"
-    "fmt"
+    // "fmt"
 )
 
 type CodeInfo struct {
@@ -64,14 +64,14 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 				return nil, err
 			}
 
-            fmt.Printf("num of ins to fix:%d, detail:\n", len(fix))
-
 			for _, v := range fix {
 
 				origin := makeSliceFromPointer(v.Addr, len(v.Code))
 				f := make([]byte, len(v.Code))
 				copy(f, origin)
 
+                /*
+                // test code
                 fmt.Printf("addr:0x%x, code:", v.Addr)
                 for _, c := range v.Code {
                     fmt.Printf(" %x", c)
@@ -81,6 +81,8 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
                     fmt.Printf(" %x", c)
                 }
                 fmt.Printf("\n")
+                // end test code
+                */
 
 				CopyInstruction(v.Addr, v.Code)
 				v.Code = f

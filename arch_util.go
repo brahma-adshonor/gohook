@@ -6,6 +6,7 @@ import (
 	"golang.org/x/arch/x86/x86asm"
 	"math"
 	"syscall"
+    //"fmt"
 )
 
 type CodeFix struct {
@@ -51,6 +52,7 @@ const (
 	FT_OTHER   = 5
 	FT_INVALID = 6
     FT_SKIP    = 7
+    FT_OVERFLOW = 8
 )
 
 func SetFuncPrologue(mode int, data []byte) {
@@ -106,7 +108,7 @@ func GetInsLenGreaterThan(mode int, data []byte, least int) int {
 	return curLen
 }
 
-func calcOffset(startAddr, curAddr, to uintptr, to_sz int, offset int32) int32 {
+func calcOffset(startAddr, curAddr, to uintptr, to_sz int, offset int32) int64 {
 	newAddr := curAddr
 	absAddr := curAddr + 2 + uintptr(offset)
 
@@ -118,7 +120,15 @@ func calcOffset(startAddr, curAddr, to uintptr, to_sz int, offset int32) int32 {
 		absAddr = to + (absAddr - startAddr)
 	}
 
-	return int32(absAddr - newAddr - 2)
+	return int64(absAddr - newAddr - 2)
+}
+
+func abs(v int64) int64 {
+    if v < 0 {
+        return -v
+    }
+
+    return v
 }
 
 func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uintptr, to_sz int) (int, int, []byte) {
@@ -130,6 +140,10 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
         nc = nc[:2]
         off := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
         if off != uint32(nc[1]) {
+            if abs(int64(int32(off))) > 0x00ff {
+                // overfloat, cannot fix this with one byte operand
+                return 2, FT_OVERFLOW, nc
+            }
             nc[1] = byte(off)
             return 2, FT_CondJmp, nc
         }
@@ -140,8 +154,12 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// six byte condition jump
         nc = nc[:6]
 		off1 := (uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24))
-        off2 := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
-        if off1 != off2 {
+        off2 := uint64(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+        if uint64(off1) != off2 {
+            if abs(int64(off2)) > 0x00ffffffff {
+                // overfloat, cannot fix this with four byte operand
+                return 6, FT_OVERFLOW, nc
+            }
             nc[2] = byte(off2)
             nc[3] = byte(off2 >> 8)
             nc[4] = byte(off2 >> 16)
@@ -154,9 +172,13 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	if code[0] == 0xeb {
 		// two byte jmp
         nc = nc[:2]
-        off := byte(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
-        if off != nc[1] {
-            nc[1] = off
+        off := uint32((calcOffset(startAddr, curAddr, to, to_sz, int32(code[1]))))
+        if off != uint32(nc[1]) {
+            if abs(int64(int32(off))) > 0x00ff {
+                // overfloat, cannot fix this with one byte operand
+                return 2, FT_OVERFLOW, nc
+            }
+            nc[1] = byte(off)
             return 2, FT_JMP, nc
         }
         return 2, FT_SKIP, nc
@@ -166,8 +188,12 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// five byte jmp
         nc = nc[:5]
 		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-        off2 := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
-        if off1 != off2 {
+        off2 := uint64(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+        if uint64(off1) != off2 {
+            if abs(int64(off2)) > 0x00ffffffff {
+                // overfloat, cannot fix this with four byte operand
+                return 6, FT_OVERFLOW, nc
+            }
             nc[1] = byte(off2)
             nc[2] = byte(off2 >> 8)
             nc[3] = byte(off2 >> 16)
@@ -181,8 +207,12 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// five byte call
         nc = nc[:5]
 		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-        off2 := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
-        if off1 != off2 {
+        off2 := uint64(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+        if uint64(off1) != off2 {
+            if abs(int64(off2)) > 0x00ffffffff {
+                // overfloat, cannot fix this with four byte operand
+                return 6, FT_OVERFLOW, nc
+            }
             nc[1] = byte(off2)
             nc[2] = byte(off2 >> 8)
             nc[3] = byte(off2 >> 16)
@@ -256,7 +286,11 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 			return nil, errors.New("ret instruction in patching erea is not allowed")
 		}
 
-		if ft != FT_OTHER {
+		if ft == FT_OVERFLOW {
+			return nil, errors.New("jmp instruction in patching erea overflow")
+		}
+
+		if ft != FT_OTHER && ft != FT_SKIP {
 			fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
 		}
 
@@ -280,7 +314,11 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 			break
 		}
 
-		if ft != FT_OTHER && ft != FT_RET {
+        if ft == FT_OVERFLOW {
+            return nil, errors.New("jmp instruction in func body overflow")
+        }
+
+		if ft != FT_OTHER && ft != FT_RET && ft != FT_SKIP {
 			fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
 		}
 
