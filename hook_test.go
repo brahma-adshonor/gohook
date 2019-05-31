@@ -75,16 +75,16 @@ func myBuffGrow(b *bytes.Buffer, n int) {
 	fmt.Println("fake buffer grow func")
 }
 
-func myBuffWriteString(b *bytes.Buffer, s string)(int,error) {
-    fmt.Printf("fake buffer WriteString func, s:%s\n", s)
+func myBuffWriteString(b *bytes.Buffer, s string) (int, error) {
+	fmt.Printf("fake buffer WriteString func, s:%s\n", s)
 
-    l,_ := myBuffWriteStringTramp(b, s)
-    return 1000 + l, nil
+	l, _ := myBuffWriteStringTramp(b, s)
+	return 1000 + l, nil
 }
 
-func myBuffWriteStringTramp(b *bytes.Buffer, s string)(int,error) {
-    fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
-    return 0, nil
+func myBuffWriteStringTramp(b *bytes.Buffer, s string) (int, error) {
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	return 0, nil
 }
 
 func TestInstanceHook(t *testing.T) {
@@ -101,20 +101,20 @@ func TestInstanceHook(t *testing.T) {
 	buff1.Grow(233)                 // no grow
 	assert.Equal(t, 4, buff1.Len()) // Len() is inlined
 
-    err3 := HookInstanceMethod(64, buff1, "WriteString", myBuffWriteString, myBuffWriteStringTramp)
+	err3 := HookInstanceMethod(64, buff1, "WriteString", myBuffWriteString, myBuffWriteStringTramp)
 	assert.Nil(t, err3)
 
-    sz1, _ := buff1.WriteString("miliao")
-    assert.Equal(t, 1006, sz1)
+	sz1, _ := buff1.WriteString("miliao")
+	assert.Equal(t, 1006, sz1)
 	assert.Equal(t, 10, buff1.Len()) // Len() is inlined
 
-    UnHookInstanceMethod(buff1, "WriteString")
-    sz2, _ := buff1.WriteString("miliao")
-    assert.Equal(t, 6, sz2)
+	UnHookInstanceMethod(buff1, "WriteString")
+	sz2, _ := buff1.WriteString("miliao")
+	assert.Equal(t, 6, sz2)
 	assert.Equal(t, 16, buff1.Len()) // Len() is inlined
 
-    sz3, _ := myBuffWriteStringTramp(nil, "sssssss")
-    assert.Equal(t, 0, sz3)
+	sz3, _ := myBuffWriteStringTramp(nil, "sssssss")
+	assert.Equal(t, 0, sz3)
 }
 
 func TestGetInsLenGreaterThan(t *testing.T) {
