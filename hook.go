@@ -41,13 +41,14 @@ func HookInstanceMethod(mode int, instance interface{}, method string, replaceme
 	return doHook(mode, m.Func, r, t)
 }
 
-func UnHookInstanceMethod(target reflect.Type, methodName string) error {
+func UnHookInstanceMethod(instance interface{}, methodName string) error {
+	target := reflect.TypeOf(instance)
 	m, ok := target.MethodByName(methodName)
 	if !ok {
 		return errors.New(fmt.Sprintf("unknown method %s", methodName))
 	}
 
-	return UnHook(m.Func)
+	return UnHook(m.Func.Interface())
 }
 
 func doUnHook(target uintptr) error {
