@@ -55,7 +55,8 @@ func TestGetInsLenGreaterThan(t *testing.T) {
 }
 
 func TestFixOneInstruction(t *testing.T) {
-	c1 := []byte{0x75, 0x40}
+	c1 := []byte{0x75, 0x40} // jne 64
+
 	l1, t1, r1 := FixOneInstruction(64, 10, 12, c1, 100, 8)
 
 	assert.Equal(t, 2, l1)
@@ -77,4 +78,20 @@ func TestFixOneInstruction(t *testing.T) {
 	assert.Equal(t, FT_OVERFLOW, t3)
 	assert.Equal(t, c1[0], r3[0])
 	assert.Equal(t, c1[1], r3[1])
+
+	l4, t4, r4 := FixOneInstruction(64, 10, 18, c1, 100, 4)
+
+	assert.Equal(t, 2, l4)
+	assert.Equal(t, FT_SKIP, t4)
+	assert.Nil(t, r4)
+
+	c2 := []byte{0x75, 0xe6} // jne -26
+	l5, t5, r5 := FixOneInstruction(64, 10, 38, c2, 100, 8)
+
+	assert.Equal(t, 2, l5)
+	assert.Equal(t, FT_CondJmp, t5)
+	assert.Equal(t, c2[0], r5[0])
+	assert.Equal(t, 64, int(r5[1]))
+
+	//c2 := []byte{0x0f,0x8d,0x10,0x00,0x00,0x00}
 }

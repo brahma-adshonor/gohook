@@ -138,7 +138,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		// two byte condition jump
 		nc = nc[:2]
-		off := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(code[1])))
+		off := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(int8(code[1]))))
 		if off != uint32(nc[1]) {
 			if abs(int64(int32(off))) > 0x00ff {
 				// overfloat, cannot fix this with one byte operand
@@ -172,7 +172,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	if code[0] == 0xeb {
 		// two byte jmp
 		nc = nc[:2]
-		off := uint32((calcOffset(startAddr, curAddr, to, to_sz, int32(code[1]))))
+		off := uint32((calcOffset(startAddr, curAddr, to, to_sz, int32(int8(code[1])))))
 		if off != uint32(nc[1]) {
 			if abs(int64(int32(off))) > 0x00ff {
 				// overfloat, cannot fix this with one byte operand
