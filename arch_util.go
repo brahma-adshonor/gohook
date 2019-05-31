@@ -108,9 +108,37 @@ func GetInsLenGreaterThan(mode int, data []byte, least int) int {
 	return curLen
 }
 
-func calcOffset(startAddr, curAddr, to uintptr, to_sz int, offset int32) int64 {
+func isByteOverflow(v int32) bool {
+	if v > 0 {
+		if v > math.MaxInt8 {
+			return true
+		}
+	} else {
+		if v < math.MinInt8 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isIntOverflow(v int64) bool {
+	if v > 0 {
+		if v > math.MaxInt32 {
+			return true
+		}
+	} else {
+		if v < math.MinInt32 {
+			return true
+		}
+	}
+
+	return false
+}
+
+func calcOffset(insSz int, startAddr, curAddr, to uintptr, to_sz int, offset int32) int64 {
 	newAddr := curAddr
-	absAddr := curAddr + 2 + uintptr(offset)
+	absAddr := curAddr + uintptr(insSz) + uintptr(offset)
 
 	if curAddr < startAddr+uintptr(to_sz) {
 		newAddr = to + (curAddr - startAddr)
@@ -120,15 +148,7 @@ func calcOffset(startAddr, curAddr, to uintptr, to_sz int, offset int32) int64 {
 		absAddr = to + (absAddr - startAddr)
 	}
 
-	return int64(absAddr - newAddr - 2)
-}
-
-func abs(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-
-	return v
+	return int64(absAddr - newAddr - uintptr(insSz))
 }
 
 func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uintptr, to_sz int) (int, int, []byte) {
@@ -138,9 +158,9 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		// two byte condition jump
 		nc = nc[:2]
-		off := uint32(calcOffset(startAddr, curAddr, to, to_sz, int32(int8(code[1]))))
+		off := uint32(calcOffset(2, startAddr, curAddr, to, to_sz, int32(int8(code[1]))))
 		if off != uint32(nc[1]) {
-			if abs(int64(int32(off))) > 0x00ff {
+			if isByteOverflow(int32(off)) {
 				// overfloat, cannot fix this with one byte operand
 				return 2, FT_OVERFLOW, nc
 			}
@@ -154,9 +174,9 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// six byte condition jump
 		nc = nc[:6]
 		off1 := (uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24))
-		off2 := uint64(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+		off2 := uint64(calcOffset(6, startAddr, curAddr, to, to_sz, int32(off1)))
 		if uint64(off1) != off2 {
-			if abs(int64(off2)) > 0x00ffffffff {
+			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
 				return 6, FT_OVERFLOW, nc
 			}
@@ -172,9 +192,9 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	if code[0] == 0xeb {
 		// two byte jmp
 		nc = nc[:2]
-		off := uint32((calcOffset(startAddr, curAddr, to, to_sz, int32(int8(code[1])))))
+		off := uint32((calcOffset(2, startAddr, curAddr, to, to_sz, int32(int8(code[1])))))
 		if off != uint32(nc[1]) {
-			if abs(int64(int32(off))) > 0x00ff {
+			if isByteOverflow(int32(off)) {
 				// overfloat, cannot fix this with one byte operand
 				return 2, FT_OVERFLOW, nc
 			}
@@ -188,9 +208,9 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// five byte jmp
 		nc = nc[:5]
 		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-		off2 := uint64(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+		off2 := uint64(calcOffset(5, startAddr, curAddr, to, to_sz, int32(off1)))
 		if uint64(off1) != off2 {
-			if abs(int64(off2)) > 0x00ffffffff {
+			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
 				return 6, FT_OVERFLOW, nc
 			}
@@ -207,9 +227,9 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// five byte call
 		nc = nc[:5]
 		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-		off2 := uint64(calcOffset(startAddr, curAddr, to, to_sz, int32(off1)))
+		off2 := uint64(calcOffset(5, startAddr, curAddr, to, to_sz, int32(off1)))
 		if uint64(off1) != off2 {
-			if abs(int64(off2)) > 0x00ffffffff {
+			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
 				return 6, FT_OVERFLOW, nc
 			}
