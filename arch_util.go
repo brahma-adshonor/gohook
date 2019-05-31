@@ -155,8 +155,8 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	nc := make([]byte, len(code))
 	copy(nc, code)
 
-	if code[0] == 0xe3 || (code[0] >= 0x70 && code[0] <= 0x7f) {
-		// two byte condition jump
+	if code[0] == 0xe3 || code[0] == 0xeb || (code[0] >= 0x70 && code[0] <= 0x7f) {
+		// two byte condition jump, two byte jmp
 		nc = nc[:2]
 		off := uint32(calcOffset(2, startAddr, curAddr, to, to_sz, int32(int8(code[1]))))
 		if off != uint32(nc[1]) {
@@ -186,33 +186,18 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 			nc[5] = byte(off2 >> 24)
 			return 6, FT_CondJmp, nc
 		}
-		return 6, FT_SKIP, nc
+		return 6, FT_SKIP, nil
 	}
 
-	if code[0] == 0xeb {
-		// two byte jmp
-		nc = nc[:2]
-		off := uint32((calcOffset(2, startAddr, curAddr, to, to_sz, int32(int8(code[1])))))
-		if off != uint32(nc[1]) {
-			if isByteOverflow(int32(off)) {
-				// overfloat, cannot fix this with one byte operand
-				return 2, FT_OVERFLOW, nc
-			}
-			nc[1] = byte(off)
-			return 2, FT_JMP, nc
-		}
-		return 2, FT_SKIP, nc
-	}
-
-	if code[0] == 0xe9 {
-		// five byte jmp
+	if code[0] == 0xe9 || code[0] == 0xe8 {
+		// five byte jmp, five byte call
 		nc = nc[:5]
 		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
 		off2 := uint64(calcOffset(5, startAddr, curAddr, to, to_sz, int32(off1)))
 		if uint64(off1) != off2 {
 			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
-				return 6, FT_OVERFLOW, nc
+				return 5, FT_OVERFLOW, nc
 			}
 			nc[1] = byte(off2)
 			nc[2] = byte(off2 >> 8)
@@ -220,26 +205,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 			nc[4] = byte(off2 >> 24)
 			return 5, FT_JMP, nc
 		}
-		return 5, FT_SKIP, nc
-	}
-
-	if code[0] == 0xe8 {
-		// five byte call
-		nc = nc[:5]
-		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-		off2 := uint64(calcOffset(5, startAddr, curAddr, to, to_sz, int32(off1)))
-		if uint64(off1) != off2 {
-			if isIntOverflow(int64(off2)) {
-				// overfloat, cannot fix this with four byte operand
-				return 6, FT_OVERFLOW, nc
-			}
-			nc[1] = byte(off2)
-			nc[2] = byte(off2 >> 8)
-			nc[3] = byte(off2 >> 16)
-			nc[4] = byte(off2 >> 24)
-			return 5, FT_CALL, nc
-		}
-		return 5, FT_SKIP, nc
+		return 5, FT_SKIP, nil
 	}
 
 	// ret instruction just return, no fix is needed.
