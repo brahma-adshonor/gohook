@@ -3,7 +3,9 @@ package hook
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"reflect"
 	"testing"
+	"unsafe"
 )
 
 func foo1(v1 int, v2 string) int {
@@ -118,8 +120,8 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 }
 
 func byteToInt32(d []byte) int32 {
-    v := int32(uint32(d[0])|(uint32(d[1])<<8)|(uint32(d[2])<<16)|(uint32(d[3])<<24))
-    return v
+	v := int32(uint32(d[0]) | (uint32(d[1]) << 8) | (uint32(d[2]) << 16) | (uint32(d[3]) << 24))
+	return v
 }
 
 func TestFixOneInstructionForSixByteJmp(t *testing.T) {
@@ -132,7 +134,7 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	assert.Equal(t, c1[0], r1[0])
 	assert.Equal(t, c1[1], r1[1])
 
-    assert.Equal(t, int32(-64), byteToInt32(r1[2:]))
+	assert.Equal(t, int32(-64), byteToInt32(r1[2:]))
 
 	// jump from within patching erea to outside, positive fix
 	c2 := []byte{0x0f, 0x8d, 0x40, 0x00, 0x00, 0x00} // jge 64
@@ -143,7 +145,7 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	assert.Equal(t, c2[0], r2[0])
 	assert.Equal(t, c2[1], r2[1])
 
-    assert.Equal(t, int32(34), byteToInt32(r2[2:]))
+	assert.Equal(t, int32(34), byteToInt32(r2[2:]))
 
 	// overflow test
 	c3 := []byte{0x0f, 0x8d, 0xfe, 0xff, 0xff, 0x7f} // jge 64
@@ -175,7 +177,7 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	assert.Equal(t, c5[0], r5[0])
 	assert.Equal(t, c5[1], r5[1])
 
-    assert.Equal(t, int32(940), byteToInt32(r5[2:]))
+	assert.Equal(t, int32(940), byteToInt32(r5[2:]))
 
 	// jump within patching erea
 	c6 := []byte{0x0f, 0x85, 0x10, 0x00, 0x00, 0x00} // jne 16
@@ -194,7 +196,7 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	assert.Equal(t, 5, l1)
 	assert.Equal(t, FT_JMP, t1)
 	assert.Equal(t, c1[0], r1[0])
-    assert.Equal(t, int32(-64), byteToInt32(r1[1:]))
+	assert.Equal(t, int32(-64), byteToInt32(r1[1:]))
 
 	// jump from within patching erea to outside, positive fix
 	c2 := []byte{0xe9, 0x40, 0x00, 0x00, 0x00} // jmp 64
@@ -203,7 +205,7 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	assert.Equal(t, 5, l2)
 	assert.Equal(t, FT_JMP, t2)
 	assert.Equal(t, c2[0], r2[0])
-    assert.Equal(t, int32(34), byteToInt32(r2[1:]))
+	assert.Equal(t, int32(34), byteToInt32(r2[1:]))
 
 	// overflow test
 	c3 := []byte{0xe9, 0xfe, 0xff, 0xff, 0x7f} // jmp 64
@@ -232,7 +234,7 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	assert.Equal(t, 5, l5)
 	assert.Equal(t, FT_JMP, t5)
 	assert.Equal(t, c5[0], r5[0])
-    assert.Equal(t, int32(940), byteToInt32(r5[1:]))
+	assert.Equal(t, int32(940), byteToInt32(r5[1:]))
 
 	// jump within patching erea
 	c6 := []byte{0xe9, 0x10, 0x00, 0x00, 0x00} // jmp 16
@@ -241,4 +243,51 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	assert.Equal(t, 5, l6)
 	assert.Equal(t, FT_SKIP, t6)
 	assert.Nil(t, r6)
+}
+
+func TestFixFuncCode(t *testing.T) {
+	// p := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff} // move %fs:0xfffffffffffffff8, %rcx
+	c1 := []byte{
+		/*0:*/ 0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, // move %fs:0xfffffffffffffff8, %rcx   sz:9
+		/*9:*/ 0x48, 0x8d, 0x44, 0x24, 0xe0, // lea    -0x20(%rsp),%rax             sz:5
+		/*14:*/ 0x48, 0x3b, 0x41, 0x10, // cmp    0x10(%rcx),%rax              sz:4
+		/*18:*/ 0x0f, 0x86, 0xc3, 0x01, 0x00, 0x00, // jbe    451                           sz:6
+		/*24:*/ 0x48, 0x81, 0xec, 0xa0, 0x00, 0x00, 0x00, // sub    $0xa0,%rsp                   sz:7
+		/*31:*/ 0x48, 0x8b, 0x9c, 0x24, 0xa8, 0x00, 0x00, 0x00, // mov    0xa8(%rsp),%rbx              sz:8
+		/*39:*/ 0xe3, 0x02, // jmp 02                       sz:2
+		/*41:*/ 0x90, // nop sz:1
+		/*42:*/ 0x90, // nop sz:1
+		/*43:*/ 0x90, // nop sz:1
+		/*44:*/ 0x90, // nop sz:1
+		//////////patching erea end: 45 bytes/////////////////////////////////////////
+		/*45:*/ 0x48, 0x89, 0x5c, 0x24, 0x40, // mov    %rbx,0x40(%rsp)              sz:5
+		/*50:*/ 0xe9, 0xd2, 0xff, 0xff, 0xff, // jmp -46      sz:5
+		/*55:*/ 0x90, // nop                                  sz:1
+		/*56:*/ 0x90, // nop                                  sz:1
+		/*57:*/ 0x90, // nop                                  sz:1
+		/*58:*/ 0x90, // nop                                  sz:1
+	}
+
+	sh := (*reflect.SliceHeader)((unsafe.Pointer(&c1)))
+
+	move_sz := 45
+	startAddr := sh.Data
+	toAddr := startAddr + 100000
+
+	fix1, err1 := FixTargetFuncCode(64, startAddr, uint32(len(c1)), toAddr, move_sz)
+
+	assert.Nil(t, err1)
+	assert.Equal(t, 2, len(fix1))
+
+	assert.Equal(t, startAddr+uintptr(18), fix1[0].Addr)
+	assert.Equal(t, startAddr+uintptr(50), fix1[1].Addr)
+
+	assert.Equal(t, 6, len(fix1[0].Code))
+	assert.Equal(t, byte(0x0f), fix1[0].Code[0])
+	assert.Equal(t, byte(0x86), fix1[0].Code[1])
+	assert.Equal(t, int32(startAddr+451-toAddr), byteToInt32(fix1[0].Code[2:]))
+
+	assert.Equal(t, 5, len(fix1[1].Code))
+	assert.Equal(t, byte(0xe9), fix1[1].Code[0])
+	assert.Equal(t, int32(toAddr+9-startAddr-50-5), byteToInt32(fix1[1].Code[1:]))
 }
