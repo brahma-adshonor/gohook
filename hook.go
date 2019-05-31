@@ -30,7 +30,8 @@ func UnHook(target interface{}) error {
 	return doUnHook(t.Pointer())
 }
 
-func HookInstanceMethod(mode int, target reflect.Type, method string, replacement, trampoline interface{}) error {
+func HookInstanceMethod(mode int, instance interface{}, method string, replacement, trampoline interface{}) error {
+	target := reflect.TypeOf(instance)
 	m, ok := target.MethodByName(method)
 	if !ok {
 		panic(fmt.Sprintf("unknown method %s", method))
@@ -60,6 +61,10 @@ func doUnHook(target uintptr) error {
 		CopyInstruction(v.Addr, v.Code)
 	}
 
+	if info.Trampoline.IsValid() {
+		CopyInstruction(info.Trampoline.Pointer(), info.Info.TrampolineOrig)
+	}
+
 	delete(g_all, target)
 
 	return nil
@@ -75,7 +80,7 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) error {
 	}
 
 	if target.Type() != replacement.Type() {
-		panic(fmt.Sprintf("target and replacement have to have the same type %s != %s", target.Type(), trampoline.Type()))
+		panic(fmt.Sprintf("target and replacement have to have the same type %s != %s", target.Type(), replacement.Type()))
 	}
 
 	tp := uintptr(0)

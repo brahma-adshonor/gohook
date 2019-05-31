@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"hook"
+    "bytes"
 	"golang.org/x/arch/x86/x86asm"
 )
 
@@ -35,7 +36,23 @@ func TestAsm() {
     fmt.Printf("r1:%d, r2:%d\n", ret1, ret2)
 }
 
+func myBuffLen(b *bytes.Buffer) int {
+    return 233
+}
+
+func myBuffLenTramp(b *bytes.Buffer) int {
+    return 1000
+}
+
 func main() {
+    buff := bytes.NewBufferString("abcd")
+    fmt.Printf("len(buff):%d\n", buff.Len())
+
+    err1 := hook.HookInstanceMethod(64, buff, "Len", myBuffLen, myBuffLenTramp)
+    if err1 != nil {
+        fmt.Printf("errors:%s\n", err1.Error())
+    }
+
     TestAsm()
 
 	//code := []byte {0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x3b,0x61}

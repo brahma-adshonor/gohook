@@ -3,10 +3,10 @@ package hook
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"golang.org/x/arch/x86/x86asm"
 	"math"
 	"syscall"
-	//"fmt"
 )
 
 type CodeFix struct {
@@ -249,8 +249,8 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 	// don't use bytes.Index() as 'start' may be the last function, which not followed by another function.
 	// thus will never find next prologue
 
-	if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
-		return nil, errors.New("invalid func prologue")
+	if funcSz == 0 && !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
+		return nil, errors.New(fmt.Sprintf("invalid func prologue, addr:0x%x", start))
 	}
 
 	curSz := 0
@@ -290,7 +290,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 		}
 
 		code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
-		if bytes.Equal(funcPrologue, code[:prologueLen]) {
+		if funcSz == 0 && bytes.Equal(funcPrologue, code[:prologueLen]) {
 			break
 		}
 
