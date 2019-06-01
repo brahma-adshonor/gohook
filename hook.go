@@ -30,7 +30,7 @@ func UnHook(target interface{}) error {
 	return doUnHook(t.Pointer())
 }
 
-func HookInstanceMethod(mode int, instance interface{}, method string, replacement, trampoline interface{}) error {
+func HookMethod(mode int, instance interface{}, method string, replacement, trampoline interface{}) error {
 	target := reflect.TypeOf(instance)
 	m, ok := target.MethodByName(method)
 	if !ok {
@@ -41,7 +41,7 @@ func HookInstanceMethod(mode int, instance interface{}, method string, replaceme
 	return doHook(mode, m.Func, r, t)
 }
 
-func UnHookInstanceMethod(instance interface{}, methodName string) error {
+func UnHookMethod(instance interface{}, methodName string) error {
 	target := reflect.TypeOf(instance)
 	m, ok := target.MethodByName(methodName)
 	if !ok {

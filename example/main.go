@@ -49,7 +49,7 @@ func main() {
     buff := bytes.NewBufferString("abcd")
     fmt.Printf("len(buff):%d\n", buff.Len())
 
-    err1 := hook.HookInstanceMethod(64, buff, "Len", myBuffLen, myBuffLenTramp)
+    err1 := hook.HookMethod(64, buff, "Len", myBuffLen, myBuffLenTramp)
     if err1 != nil {
         fmt.Printf("errors:%s\n", err1.Error())
     }
