@@ -477,5 +477,5 @@ func TestStackGrowth(t *testing.T) {
 
 	ret := victim(0, 1000, 100000, "ab", "miliao", "see")
 
-	assert.Equal(t, 42, ret)
+	assert.Equal(t, 100042, ret)
 }

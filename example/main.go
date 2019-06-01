@@ -45,6 +45,7 @@ func myBuffLenTramp(b *bytes.Buffer) int {
 }
 
 func main() {
+    TestStackGrowth()
     buff := bytes.NewBufferString("abcd")
     fmt.Printf("len(buff):%d\n", buff.Len())
 
@@ -86,5 +87,75 @@ func main() {
 
 	fullInstLen := hook.GetInsLenGreaterThan(64, code, 11)
 	fmt.Printf("full inst len:%d\n", fullInstLen)
+}
+
+func victim(a,b,c int, e,f,g string) int {
+    if a > 100 {
+        return 42
+    }
+
+    var someBigStackArray [4096]byte // to occupy stack, don't let it escape
+    for i := 0; i < len(someBigStackArray); i++ {
+        someBigStackArray[i] = byte((a ^ b) & (i ^ c))
+    }
+
+    if (a % 2) != 0 {
+        someBigStackArray[200] = 0xe9
+    }
+
+    fmt.Printf("calling real victim() (%s,%s,%s,%x):%dth\n", e, f, g, someBigStackArray[200], a)
+
+    return  1 + victim(a + 1, b - 1, c - 1, e, f, g)
+}
+
+func victimTrampoline(a,b,c int, e,f,g string) int {
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+    fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
+
+    for {
+        if (a % 2) != 0 {
+            fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+        } else {
+            a++
+        }
+
+        if a + b > 100 {
+            break
+        }
+
+        buff := bytes.NewBufferString("something weird")
+        fmt.Printf("len:%d\n", buff.Len())
+    }
+
+    return 1
+}
+
+func victimReplace(a,b,c int, e,f,g string) int {
+    fmt.Printf("victimReplace sends its regard\n")
+    ret := 0
+    if a > 100 {
+        ret = 100000
+    }
+
+    return ret + victimTrampoline(a, b, c, e, f, g)
+}
+
+func TestStackGrowth() {
+    hook.SetMinJmpCodeSize(64)
+    defer hook.SetMinJmpCodeSize(0)
+
+    hook.Hook(64, victim, victimReplace, victimTrampoline)
+
+    victim(0, 1000, 100000, "ab", "miliao", "see")
 }
 

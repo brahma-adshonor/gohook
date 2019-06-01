@@ -141,16 +141,14 @@ func isIntOverflow(v int64) bool {
 	return false
 }
 
-func calcOffset(insSz int, startAddr, curAddr, to uintptr, to_sz int, offset int32) int64 {
+func calcOffset(call bool, insSz int, startAddr, curAddr, to uintptr, to_sz int, offset int32) int64 {
 	newAddr := curAddr
 	absAddr := curAddr + uintptr(insSz) + uintptr(offset)
 
-	/*
-	   // in case of jump to the start, dont fix it.
-	   if (absAddr == startAddr) {
-	       return int64(offset)
-	   }
-	*/
+	// in case of recursive call to the start, dont fix it.
+	if call && absAddr == startAddr {
+		return int64(offset)
+	}
 
 	if curAddr < startAddr+uintptr(to_sz) {
 		newAddr = to + (curAddr - startAddr)
@@ -170,7 +168,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	if code[0] == 0xe3 || code[0] == 0xeb || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		// two byte condition jump, two byte jmp
 		nc = nc[:2]
-		off := calcOffset(2, startAddr, curAddr, to, to_sz, int32(int8(code[1])))
+		off := calcOffset(false, 2, startAddr, curAddr, to, to_sz, int32(int8(code[1])))
 		if off != int64(int8(nc[1])) {
 			if isByteOverflow(int32(off)) {
 				// overfloat, cannot fix this with one byte operand
@@ -186,7 +184,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// six byte condition jump
 		nc = nc[:6]
 		off1 := (uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24))
-		off2 := uint64(calcOffset(6, startAddr, curAddr, to, to_sz, int32(off1)))
+		off2 := uint64(calcOffset(false, 6, startAddr, curAddr, to, to_sz, int32(off1)))
 		if uint64(int32(off1)) != off2 {
 			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
@@ -205,7 +203,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		// five byte jmp, five byte call
 		nc = nc[:5]
 		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
-		off2 := uint64(calcOffset(5, startAddr, curAddr, to, to_sz, int32(off1)))
+		off2 := uint64(calcOffset(code[0] == 0xe8, 5, startAddr, curAddr, to, to_sz, int32(off1)))
 		if uint64(int32(off1)) != off2 {
 			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
