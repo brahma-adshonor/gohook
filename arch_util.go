@@ -15,6 +15,7 @@ type CodeFix struct {
 }
 
 var (
+	minJmpCodeSize = 0
 	elfInfo, _     = NewElfInfo()
 	funcPrologue32 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x8d, 0x44, 0x24, 0xe0} //FIXME
 	funcPrologue64 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x8d, 0x44, 0x24, 0xe0}
@@ -54,6 +55,10 @@ const (
 	FT_SKIP     = 7
 	FT_OVERFLOW = 8
 )
+
+func SetMinJmpCodeSize(sz int) {
+	minJmpCodeSize = sz
+}
 
 func SetFuncPrologue(mode int, data []byte) {
 	if mode == 32 {
@@ -140,6 +145,13 @@ func calcOffset(insSz int, startAddr, curAddr, to uintptr, to_sz int, offset int
 	newAddr := curAddr
 	absAddr := curAddr + uintptr(insSz) + uintptr(offset)
 
+	/*
+	   // in case of jump to the start, dont fix it.
+	   if (absAddr == startAddr) {
+	       return int64(offset)
+	   }
+	*/
+
 	if curAddr < startAddr+uintptr(to_sz) {
 		newAddr = to + (curAddr - startAddr)
 	}
@@ -158,8 +170,8 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 	if code[0] == 0xe3 || code[0] == 0xeb || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		// two byte condition jump, two byte jmp
 		nc = nc[:2]
-		off := uint32(calcOffset(2, startAddr, curAddr, to, to_sz, int32(int8(code[1]))))
-		if off != uint32(nc[1]) {
+		off := calcOffset(2, startAddr, curAddr, to, to_sz, int32(int8(code[1])))
+		if off != int64(int8(nc[1])) {
 			if isByteOverflow(int32(off)) {
 				// overfloat, cannot fix this with one byte operand
 				return 2, FT_OVERFLOW, nc
@@ -175,7 +187,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		nc = nc[:6]
 		off1 := (uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24))
 		off2 := uint64(calcOffset(6, startAddr, curAddr, to, to_sz, int32(off1)))
-		if uint64(off1) != off2 {
+		if uint64(int32(off1)) != off2 {
 			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
 				return 6, FT_OVERFLOW, nc
@@ -194,7 +206,7 @@ func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uin
 		nc = nc[:5]
 		off1 := (uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24))
 		off2 := uint64(calcOffset(5, startAddr, curAddr, to, to_sz, int32(off1)))
-		if uint64(off1) != off2 {
+		if uint64(int32(off1)) != off2 {
 			if isIntOverflow(int64(off2)) {
 				// overfloat, cannot fix this with four byte operand
 				return 5, FT_OVERFLOW, nc
@@ -319,7 +331,9 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	// 1. use relaive jump if |from-to| < 2G
 	// 2. otherwise, push target, then ret
 
+	var code []byte
 	relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
+
 	if relative {
 		var dis uint32
 		if to > from {
@@ -327,17 +341,15 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 		} else {
 			dis = uint32(-int32(from-to) - 5)
 		}
-		return []byte{
+		code = []byte{
 			0xe9,
 			byte(dis),
 			byte(dis >> 8),
 			byte(dis >> 16),
 			byte(dis >> 24),
 		}
-	}
-
-	if mode == 32 {
-		return []byte{
+	} else if mode == 32 {
+		code = []byte{
 			0x68, // push
 			byte(to),
 			byte(to >> 8),
@@ -350,7 +362,7 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 		// 1. move to register(eg, %rdx), then push %rdx, however, overwriting register may cause problem if not handled carefully.
 		// 2. push twice, preferred.
 		/*
-		   return []byte{
+		   code = []byte{
 		       0x48, // prefix
 		       0xba, // mov to %rdx
 		       byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
@@ -359,7 +371,7 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 		       0xc3, // retn
 		   }
 		*/
-		return []byte{
+		code = []byte{
 			0x68, //push
 			byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
 			0xc7, 0x44, 0x24, // mov $value, -4%rsp
@@ -370,4 +382,19 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	} else {
 		panic("invalid mode")
 	}
+
+	sz := len(code)
+	if minJmpCodeSize > 0 && sz < minJmpCodeSize {
+		nop := make([]byte, 0, minJmpCodeSize-sz)
+		for {
+			if len(nop) >= minJmpCodeSize-sz {
+				break
+			}
+			nop = append(nop, 0x90)
+		}
+
+		code = append(code, nop...)
+	}
+
+	return code
 }

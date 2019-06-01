@@ -197,7 +197,13 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 	assert.Equal(t, FT_SKIP, t6)
 	assert.Nil(t, r6)
 
-	// TODO jmp/call
+	// sign test, from outside to outside
+	c4 := []byte{0x7c, 0xcd} // jne -51
+	l7, t7, r7 := FixOneInstruction(64, 10, 83, c4, 1000, 10)
+
+	assert.Equal(t, 2, l7)
+	assert.Equal(t, FT_SKIP, t7)
+	assert.Nil(t, r7)
 }
 
 func byteToInt32(d []byte) int32 {
@@ -324,6 +330,13 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	assert.Equal(t, 5, l6)
 	assert.Equal(t, FT_SKIP, t6)
 	assert.Nil(t, r6)
+
+	// jump from outside to outside, sign test
+	c7 := []byte{0xe8, 0xdc, 0xfb, 0xff, 0xff} // jmp -1060
+	l7, t7, r7 := FixOneInstruction(64, 2000, 4100, c7, 10000, 30)
+	assert.Equal(t, 5, l7)
+	assert.Equal(t, FT_SKIP, t7)
+	assert.Nil(t, r7)
 }
 
 func TestFixFuncCode(t *testing.T) {
@@ -393,4 +406,76 @@ func TestFixFuncCode(t *testing.T) {
 	assert.Equal(t, 5, len(fix2[1].Code))
 	assert.Equal(t, byte(0xe9), fix2[1].Code[0])
 	assert.Equal(t, int32(toAddr+9-startAddr-50-5), byteToInt32(fix2[1].Code[1:]))
+}
+
+func victim(a, b, c int, e, f, g string) int {
+	if a > 100 {
+		return 42
+	}
+
+	var someBigStackArray [4096]byte // to occupy stack, don't let it escape
+	for i := 0; i < len(someBigStackArray); i++ {
+		someBigStackArray[i] = byte((a ^ b) & (i ^ c))
+	}
+
+	if (a % 2) != 0 {
+		someBigStackArray[200] = 0xe9
+	}
+
+	fmt.Printf("calling real victim() (%s,%s,%s,%x):%dth\n", e, f, g, someBigStackArray[200], a)
+
+	return victim(a+1, b-1, c-1, e, f, g)
+}
+
+func victimTrampoline(a, b, c int, e, f, g string) int {
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+
+	for {
+		if (a % 2) != 0 {
+			fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+		} else {
+			a++
+		}
+
+		if a+b > 100 {
+			break
+		}
+
+		buff := bytes.NewBufferString("something weird")
+		fmt.Printf("len:%d\n", buff.Len())
+	}
+
+	return 1
+}
+
+func victimReplace(a, b, c int, e, f, g string) int {
+	fmt.Printf("victimReplace sends its regard\n")
+	ret := 0
+	if a > 100 {
+		ret = 100000
+	}
+
+	return ret + victimTrampoline(a, b, c, e, f, g)
+}
+
+func TestStackGrowth(t *testing.T) {
+	SetMinJmpCodeSize(64)
+	defer SetMinJmpCodeSize(0)
+
+	Hook(64, victim, victimReplace, victimTrampoline)
+
+	ret := victim(0, 1000, 100000, "ab", "miliao", "see")
+
+	assert.Equal(t, 42, ret)
 }
