@@ -142,7 +142,7 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 	// jump from within patching erea to outside, negative fix
 	c1 := []byte{0x75, 0x40} // jne 64
 
-	l1, t1, r1 := FixOneInstruction(64, 10, 12, c1, 100, 8)
+	l1, t1, r1 := FixOneInstruction(64, false, 10, 12, c1, 100, 8)
 
 	assert.Equal(t, 2, l1)
 	assert.Equal(t, FT_CondJmp, t1)
@@ -150,7 +150,7 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 	assert.Equal(t, int8(-26), int8(r1[1]))
 
 	// jump from within patching erea to outside, positive fix
-	l2, t2, r2 := FixOneInstruction(64, 10, 12, c1, 26, 8)
+	l2, t2, r2 := FixOneInstruction(64, false, 10, 12, c1, 26, 8)
 
 	assert.Equal(t, 2, l2)
 	assert.Equal(t, FT_CondJmp, t2)
@@ -158,7 +158,7 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 	assert.Equal(t, int8(48), int8(r2[1]))
 
 	//overflow test
-	l3, t3, r3 := FixOneInstruction(64, 10, 12, c1, 1000, 8)
+	l3, t3, r3 := FixOneInstruction(64, false, 10, 12, c1, 1000, 8)
 
 	assert.Equal(t, 2, l3)
 	assert.Equal(t, FT_OVERFLOW, t3)
@@ -167,7 +167,7 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 
 	// overflow test2
 	c32 := []byte{0x75, 0x7e} // jne 0x7e
-	l32, t32, r32 := FixOneInstruction(64, 30, 32, c32, 10, 8)
+	l32, t32, r32 := FixOneInstruction(64, false, 30, 32, c32, 10, 8)
 
 	assert.Equal(t, 2, l32)
 	assert.Equal(t, FT_OVERFLOW, t32)
@@ -175,15 +175,16 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 	assert.Equal(t, c32[1], r32[1])
 
 	// jump from outside patching erea to outside of patching erea
-	l4, t4, r4 := FixOneInstruction(64, 10, 18, c1, 100, 4)
+	l4, t4, r4 := FixOneInstruction(64, false, 10, 18, c1, 100, 4)
 
 	assert.Equal(t, 2, l4)
 	assert.Equal(t, FT_SKIP, t4)
-	assert.Nil(t, r4)
+	assert.Equal(t, c1[0], r4[0])
+	assert.Equal(t, c1[1], r4[1])
 
 	// jump from outside patching erea to within patching erea
 	c2 := []byte{0x75, 0xe6} // jne -26
-	l5, t5, r5 := FixOneInstruction(64, 10, 38, c2, 100, 8)
+	l5, t5, r5 := FixOneInstruction(64, false, 10, 38, c2, 100, 8)
 
 	assert.Equal(t, 2, l5)
 	assert.Equal(t, FT_CondJmp, t5)
@@ -192,19 +193,21 @@ func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
 
 	// jump within patching erea
 	c3 := []byte{0x75, 0x06} // jne 6
-	l6, t6, r6 := FixOneInstruction(64, 10, 12, c3, 100, 11)
+	l6, t6, r6 := FixOneInstruction(64, false, 10, 12, c3, 100, 11)
 
 	assert.Equal(t, 2, l6)
 	assert.Equal(t, FT_SKIP, t6)
-	assert.Nil(t, r6)
+	assert.Equal(t, c3[0], r6[0])
+	assert.Equal(t, c3[1], r6[1])
 
 	// sign test, from outside to outside
 	c4 := []byte{0x7c, 0xcd} // jne -51
-	l7, t7, r7 := FixOneInstruction(64, 10, 83, c4, 1000, 10)
+	l7, t7, r7 := FixOneInstruction(64, false, 10, 83, c4, 1000, 10)
 
 	assert.Equal(t, 2, l7)
 	assert.Equal(t, FT_SKIP, t7)
-	assert.Nil(t, r7)
+	assert.Equal(t, c4[0], r7[0])
+	assert.Equal(t, c4[1], r7[1])
 }
 
 func byteToInt32(d []byte) int32 {
@@ -216,7 +219,7 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	// jump from within patching erea to outside, negative fix
 	c1 := []byte{0x0f, 0x8d, 0x10, 0x00, 0x00, 0x00} // jge 16
 
-	l1, t1, r1 := FixOneInstruction(64, 20, 22, c1, 100, 8)
+	l1, t1, r1 := FixOneInstruction(64, false, 20, 22, c1, 100, 8)
 	assert.Equal(t, 6, l1)
 	assert.Equal(t, FT_CondJmp, t1)
 	assert.Equal(t, c1[0], r1[0])
@@ -227,7 +230,7 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	// jump from within patching erea to outside, positive fix
 	c2 := []byte{0x0f, 0x8d, 0x40, 0x00, 0x00, 0x00} // jge 64
 
-	l2, t2, r2 := FixOneInstruction(64, 2, 4, c2, 32, 9)
+	l2, t2, r2 := FixOneInstruction(64, false, 2, 4, c2, 32, 9)
 	assert.Equal(t, 6, l2)
 	assert.Equal(t, FT_CondJmp, t2)
 	assert.Equal(t, c2[0], r2[0])
@@ -238,7 +241,7 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	// overflow test
 	c3 := []byte{0x0f, 0x8d, 0xfe, 0xff, 0xff, 0x7f} // jge 64
 
-	l3, t3, r3 := FixOneInstruction(64, 10000, 10004, c3, 100, 16)
+	l3, t3, r3 := FixOneInstruction(64, false, 10000, 10004, c3, 100, 16)
 	assert.Equal(t, 6, l3)
 	assert.Equal(t, FT_OVERFLOW, t3)
 	assert.Equal(t, c3[0], r3[0])
@@ -251,15 +254,20 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	// jump from outside patching erea to outside of patching erea
 	c4 := []byte{0x0f, 0x8d, 0x40, 0x00, 0x00, 0x00} // jge 64
 
-	l4, t4, r4 := FixOneInstruction(64, 10, 33, c4, 22, 9)
+	l4, t4, r4 := FixOneInstruction(64, false, 10, 33, c4, 22, 9)
 	assert.Equal(t, 6, l4)
 	assert.Equal(t, FT_SKIP, t4)
-	assert.Nil(t, r4)
+	assert.Equal(t, c4[0], r4[0])
+	assert.Equal(t, c4[1], r4[1])
+	assert.Equal(t, c4[2], r4[2])
+	assert.Equal(t, c4[3], r4[3])
+	assert.Equal(t, c4[4], r4[4])
+	assert.Equal(t, c4[5], r4[5])
 
 	// jump from outside patching erea to within patching erea
 	c5 := []byte{0x0f, 0x85, 0xce, 0xff, 0xff, 0xff} // jne -50
 
-	l5, t5, r5 := FixOneInstruction(64, 10, 60, c5, 1000, 9)
+	l5, t5, r5 := FixOneInstruction(64, false, 10, 60, c5, 1000, 9)
 	assert.Equal(t, 6, l5)
 	assert.Equal(t, FT_CondJmp, t5)
 	assert.Equal(t, c5[0], r5[0])
@@ -270,17 +278,22 @@ func TestFixOneInstructionForSixByteJmp(t *testing.T) {
 	// jump within patching erea
 	c6 := []byte{0x0f, 0x85, 0x10, 0x00, 0x00, 0x00} // jne 16
 
-	l6, t6, r6 := FixOneInstruction(64, 10, 12, c6, 1000, 30)
+	l6, t6, r6 := FixOneInstruction(64, false, 10, 12, c6, 1000, 30)
 	assert.Equal(t, 6, l6)
 	assert.Equal(t, FT_SKIP, t6)
-	assert.Nil(t, r6)
+	assert.Equal(t, c6[0], r6[0])
+	assert.Equal(t, c6[1], r6[1])
+	assert.Equal(t, c6[2], r6[2])
+	assert.Equal(t, c6[3], r6[3])
+	assert.Equal(t, c6[4], r6[4])
+	assert.Equal(t, c6[5], r6[5])
 }
 
 func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	// jump from within patching erea to outside, negative fix
 	c1 := []byte{0xe9, 0x10, 0x00, 0x00, 0x00} // jmp 16
 
-	l1, t1, r1 := FixOneInstruction(64, 20, 22, c1, 100, 8)
+	l1, t1, r1 := FixOneInstruction(64, false, 20, 22, c1, 100, 8)
 	assert.Equal(t, 5, l1)
 	assert.Equal(t, FT_JMP, t1)
 	assert.Equal(t, c1[0], r1[0])
@@ -289,7 +302,7 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	// jump from within patching erea to outside, positive fix
 	c2 := []byte{0xe9, 0x40, 0x00, 0x00, 0x00} // jmp 64
 
-	l2, t2, r2 := FixOneInstruction(64, 2, 4, c2, 32, 9)
+	l2, t2, r2 := FixOneInstruction(64, false, 2, 4, c2, 32, 9)
 	assert.Equal(t, 5, l2)
 	assert.Equal(t, FT_JMP, t2)
 	assert.Equal(t, c2[0], r2[0])
@@ -298,7 +311,7 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	// overflow test
 	c3 := []byte{0xe9, 0xfe, 0xff, 0xff, 0x7f} // jmp 64
 
-	l3, t3, r3 := FixOneInstruction(64, 10000, 10004, c3, 100, 16)
+	l3, t3, r3 := FixOneInstruction(64, false, 10000, 10004, c3, 100, 16)
 	assert.Equal(t, 5, l3)
 	assert.Equal(t, FT_OVERFLOW, t3)
 	assert.Equal(t, c3[0], r3[0])
@@ -310,15 +323,19 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	// jump from outside patching erea to outside of patching erea
 	c4 := []byte{0xe9, 0x40, 0x00, 0x00, 0x00} // jmp 64
 
-	l4, t4, r4 := FixOneInstruction(64, 10, 33, c4, 22, 9)
+	l4, t4, r4 := FixOneInstruction(64, false, 10, 33, c4, 22, 9)
 	assert.Equal(t, 5, l4)
 	assert.Equal(t, FT_SKIP, t4)
-	assert.Nil(t, r4)
+	assert.Equal(t, c4[0], r4[0])
+	assert.Equal(t, c4[1], r4[1])
+	assert.Equal(t, c4[2], r4[2])
+	assert.Equal(t, c4[3], r4[3])
+	assert.Equal(t, c4[4], r4[4])
 
 	// jump from outside patching erea to within patching erea
 	c5 := []byte{0xe9, 0xce, 0xff, 0xff, 0xff} // jmp -50
 
-	l5, t5, r5 := FixOneInstruction(64, 10, 60, c5, 1000, 9)
+	l5, t5, r5 := FixOneInstruction(64, false, 10, 60, c5, 1000, 9)
 	assert.Equal(t, 5, l5)
 	assert.Equal(t, FT_JMP, t5)
 	assert.Equal(t, c5[0], r5[0])
@@ -327,17 +344,25 @@ func TestFixOneInstructionForFixByteJmp(t *testing.T) {
 	// jump within patching erea
 	c6 := []byte{0xe9, 0x10, 0x00, 0x00, 0x00} // jmp 16
 
-	l6, t6, r6 := FixOneInstruction(64, 10, 12, c6, 1000, 30)
+	l6, t6, r6 := FixOneInstruction(64, false, 10, 12, c6, 1000, 30)
 	assert.Equal(t, 5, l6)
 	assert.Equal(t, FT_SKIP, t6)
-	assert.Nil(t, r6)
+	assert.Equal(t, c6[0], r6[0])
+	assert.Equal(t, c6[1], r6[1])
+	assert.Equal(t, c6[2], r6[2])
+	assert.Equal(t, c6[3], r6[3])
+	assert.Equal(t, c6[4], r6[4])
 
 	// jump from outside to outside, sign test
 	c7 := []byte{0xe8, 0xdc, 0xfb, 0xff, 0xff} // jmp -1060
-	l7, t7, r7 := FixOneInstruction(64, 2000, 4100, c7, 10000, 30)
+	l7, t7, r7 := FixOneInstruction(64, false, 2000, 4100, c7, 10000, 30)
 	assert.Equal(t, 5, l7)
 	assert.Equal(t, FT_SKIP, t7)
-	assert.Nil(t, r7)
+	assert.Equal(t, c7[0], r7[0])
+	assert.Equal(t, c7[1], r7[1])
+	assert.Equal(t, c7[2], r7[2])
+	assert.Equal(t, c7[3], r7[3])
+	assert.Equal(t, c7[4], r7[4])
 }
 
 func TestFixFuncCode(t *testing.T) {

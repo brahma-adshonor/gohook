@@ -53,8 +53,6 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			sz, _ = elfInfo.GetFuncSize(target)
 		}
 
-		//if size of jumpcode == 5, there is no chance we will mess up with jmp instruction
-		//in this case we better dont fix code if we can not get function size
 		fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
 		if err != nil {
 			return nil, err
@@ -65,20 +63,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			f := make([]byte, len(v.Code))
 			copy(f, origin)
 
-			/*
-			   // test code
-			   fmt.Printf("addr:0x%x, code:", v.Addr)
-			   for _, c := range v.Code {
-			       fmt.Printf(" %x", c)
-			   }
-
-			   fmt.Printf(", origin:")
-			   for _, c := range f {
-			       fmt.Printf(" %x", c)
-			   }
-			   fmt.Printf("\n")
-			   // end test code
-			*/
+			// printInstructionFix(v, f)
 
 			CopyInstruction(v.Addr, v.Code)
 			v.Code = f
@@ -101,4 +86,17 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 	}
 
 	return info, nil
+}
+
+func printInstructionFix(v CodeFix, origin []byte) {
+	fmt.Printf("addr:0x%x, code:", v.Addr)
+	for _, c := range v.Code {
+		fmt.Printf(" %x", c)
+	}
+
+	fmt.Printf(", origin:")
+	for _, c := range origin {
+		fmt.Printf(" %x", c)
+	}
+	fmt.Printf("\n")
 }
