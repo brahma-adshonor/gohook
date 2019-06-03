@@ -1,14 +1,14 @@
 package hook
 
 import (
+	"fmt"
 	"reflect"
 	"syscall"
 	"unsafe"
-    "fmt"
 )
 
 func dummy(v int) string {
-    return fmt.Sprintf("some text:%d", v)
+	return fmt.Sprintf("some text:%d", v)
 }
 
 type CodeInfo struct {
@@ -64,39 +64,41 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			for _, v := range fix {
 				origin := makeSliceFromPointer(v.Addr, len(v.Code))
 				f := make([]byte, len(v.Code))
-                copy(f, origin)
+				copy(f, origin)
 
-                // test code
-                fmt.Printf("addr:0x%x, code:", v.Addr)
-                for _, c := range v.Code {
-                    fmt.Printf(" %x", c)
-                }
+				/*
+					// test code
+					fmt.Printf("addr:0x%x, code:", v.Addr)
+					for _, c := range v.Code {
+						fmt.Printf(" %x", c)
+					}
 
-                fmt.Printf(", origin:")
-                for _, c := range f {
-                    fmt.Printf(" %x", c)
-                }
-                fmt.Printf("\n")
-                // end test code
+					fmt.Printf(", origin:")
+					for _, c := range f {
+						fmt.Printf(" %x", c)
+					}
+					fmt.Printf("\n")
+					// end test code
+				*/
 
-                CopyInstruction(v.Addr, v.Code)
-                v.Code = f
-                info.Fix = append(info.Fix, v)
-            }
-        }
+				CopyInstruction(v.Addr, v.Code)
+				v.Code = f
+				info.Fix = append(info.Fix, v)
+			}
+		}
 
-        CopyInstruction(trampoline, ts)
-    }
+		CopyInstruction(trampoline, ts)
+	}
 
-    CopyInstruction(target, jumpcode)
+	CopyInstruction(target, jumpcode)
 
-    if trampoline != uintptr(0) {
-        jumpcode = genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
-        insLen2 := len(jumpcode)
-        info.TrampolineOrig = make([]byte, len(info.Origin)+insLen2)
+	if trampoline != uintptr(0) {
+		jumpcode = genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
+		insLen2 := len(jumpcode)
+		info.TrampolineOrig = make([]byte, len(info.Origin)+insLen2)
 
-        ts2 := makeSliceFromPointer(trampoline, len(info.Origin)+insLen2)
-        copy(info.TrampolineOrig, ts2)
+		ts2 := makeSliceFromPointer(trampoline, len(info.Origin)+insLen2)
+		copy(info.TrampolineOrig, ts2)
 		CopyInstruction(trampoline+uintptr(insLen), jumpcode)
 	}
 
