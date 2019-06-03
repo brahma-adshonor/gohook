@@ -53,38 +53,36 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			sz, _ = elfInfo.GetFuncSize(target)
 		}
 
-		if insLen > 5 || sz > 0 {
-			//if size of jumpcode == 5, there is no chance we will mess up with jmp instruction
-			//in this case we better dont fix code if we can not get function size
-			fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
-			if err != nil {
-				return nil, err
-			}
+		//if size of jumpcode == 5, there is no chance we will mess up with jmp instruction
+		//in this case we better dont fix code if we can not get function size
+		fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
+		if err != nil {
+			return nil, err
+		}
 
-			for _, v := range fix {
-				origin := makeSliceFromPointer(v.Addr, len(v.Code))
-				f := make([]byte, len(v.Code))
-				copy(f, origin)
+		for _, v := range fix {
+			origin := makeSliceFromPointer(v.Addr, len(v.Code))
+			f := make([]byte, len(v.Code))
+			copy(f, origin)
 
-				/*
-					// test code
-					fmt.Printf("addr:0x%x, code:", v.Addr)
-					for _, c := range v.Code {
-						fmt.Printf(" %x", c)
-					}
+			/*
+			   // test code
+			   fmt.Printf("addr:0x%x, code:", v.Addr)
+			   for _, c := range v.Code {
+			       fmt.Printf(" %x", c)
+			   }
 
-					fmt.Printf(", origin:")
-					for _, c := range f {
-						fmt.Printf(" %x", c)
-					}
-					fmt.Printf("\n")
-					// end test code
-				*/
+			   fmt.Printf(", origin:")
+			   for _, c := range f {
+			       fmt.Printf(" %x", c)
+			   }
+			   fmt.Printf("\n")
+			   // end test code
+			*/
 
-				CopyInstruction(v.Addr, v.Code)
-				v.Code = f
-				info.Fix = append(info.Fix, v)
-			}
+			CopyInstruction(v.Addr, v.Code)
+			v.Code = f
+			info.Fix = append(info.Fix, v)
 		}
 
 		CopyInstruction(trampoline, ts)
