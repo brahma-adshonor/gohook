@@ -36,7 +36,8 @@ func TestHook(t *testing.T) {
 	ret1 := foo1(23, "sval for foo1")
 	assert.Equal(t, 65, ret1)
 
-	Hook(64, foo1, foo2, foo3)
+	err := Hook(64, foo1, foo2, foo3)
+	assert.Nil(t, err)
 
 	ret2 := foo1(23, "sval for foo1")
 	assert.Equal(t, 4342, ret2)

@@ -17,7 +17,7 @@ type CodeFix struct {
 var (
 	minJmpCodeSize = 0
 	elfInfo, _     = NewElfInfo()
-	funcPrologue32 = []byte{0x65, 0x8b, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x8b,0x89, 0xfc, 0xff, 0xff, 0xff}
+	funcPrologue32 = []byte{0x65, 0x8b, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x8b, 0x89, 0xfc, 0xff, 0xff, 0xff}
 	funcPrologue64 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x8d, 0x44, 0x24, 0xe0}
 
 	// ======================condition jump instruction========================
@@ -275,15 +275,15 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 		sz, ft, nc := FixOneInstruction(mode, start, curAddr, code, to, move_sz)
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
-			return nil, errors.New("ivalid instruction scanned")
+			return nil, errors.New(fmt.Sprintf("ivalid instruction scanned, addr:0x%x", curAddr))
 		}
 
 		if ft == FT_RET {
-			return nil, errors.New("ret instruction in patching erea is not allowed")
+			return nil, errors.New(fmt.Sprintf("ret instruction in patching erea is not allowed, addr:0x%x", curAddr))
 		}
 
 		if ft == FT_OVERFLOW {
-			return nil, errors.New("jmp instruction in patching erea overflow")
+			return nil, errors.New(fmt.Sprintf("jmp instruction in patching erea overflow, addr:0x%x", curAddr))
 		}
 
 		if ft != FT_OTHER && ft != FT_SKIP {
@@ -311,7 +311,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 		}
 
 		if ft == FT_OVERFLOW {
-			return nil, errors.New("jmp instruction in func body overflow")
+			return nil, errors.New(fmt.Sprintf("jmp instruction in body overflow, addr:0x%x", curAddr))
 		}
 
 		if ft != FT_OTHER && ft != FT_RET && ft != FT_SKIP {

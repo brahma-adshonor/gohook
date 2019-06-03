@@ -25,9 +25,9 @@ func foo3(v1 int, v2 string) int {
 func hookFunc() {
     ret1 := foo1(23, "miliao for foo1 before hook")
 
-    hook.Hook(64, foo1, foo2, foo3)
+    err := hook.Hook(64, foo1, foo2, foo3)
 
-    fmt.Println("hook done")
+    fmt.Printf("hook done, err:%s\n", err.Error())
 
     ret2 := foo1(23, "miliao for foo1 after hook")
 
