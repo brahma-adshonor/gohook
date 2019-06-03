@@ -428,22 +428,22 @@ func victim(a, b, c int, e, f, g string) int {
 }
 
 func victimTrampoline(a, b, c int, e, f, g string) int {
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
 
 	for {
 		if (a % 2) != 0 {
-			fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+			fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
 		} else {
 			a++
 		}
