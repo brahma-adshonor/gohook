@@ -70,12 +70,19 @@ func hookMethod() {
 	buff.WriteString("hook by miliao")
 	fmt.Printf("value of buff:%s\n", buff.String())
 
+	sz1 := buff.Len()
+
 	fmt.Printf("try hook bytes.Buffer.Len()\n")
 	err2 := hook.HookMethod(buff, "Len", myBuffLen, myBuffLenTramp)
 	if err2 != nil {
 		fmt.Printf("hook Len() fail, err:%s\n", err2.Error())
 		return
 	}
+
+	sz2 := buff.Len()
+	sz3 := myBuffLenTramp(buff)
+
+	fmt.Printf("old sz:%d, new sz:%d, copy func:%d\n", sz1, sz2, sz3)
 }
 
 func main() {

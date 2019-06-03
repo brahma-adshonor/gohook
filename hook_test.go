@@ -521,19 +521,19 @@ func TestFuncSize(t *testing.T) {
 
 	sz1, err1 := elf.GetFuncSize(addr1)
 	assert.Nil(t, err1)
-	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1)
+	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, false)
 	assert.Nil(t, err11)
 	assert.Equal(t, sz1, sz11)
 
 	sz2, err2 := elf.GetFuncSize(addr2)
 	assert.Nil(t, err2)
-	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2)
+	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, false)
 	assert.Nil(t, err21)
 	assert.Equal(t, sz2, sz21)
 
 	sz3, err3 := elf.GetFuncSize(addr3)
 	assert.Nil(t, err3)
-	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3)
+	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, false)
 	assert.Nil(t, err31)
 	assert.Equal(t, sz3, sz31)
 }

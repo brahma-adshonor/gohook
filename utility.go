@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"syscall"
@@ -28,8 +29,56 @@ func makeSliceFromPointer(p uintptr, length int) []byte {
 func CopyInstruction(location uintptr, data []byte) {
 	f := makeSliceFromPointer(location, len(data))
 	setPageWritable(location, len(data), syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC)
-	copy(f, data[:])
+	sz := copy(f, data[:])
 	setPageWritable(location, len(data), syscall.PROT_READ|syscall.PROT_EXEC)
+	if sz != len(data) {
+		panic("copy instruction to target failed")
+	}
+}
+
+func copyFunction(mode int, from, to uintptr) ([]byte, error) {
+	sz1 := uint32(0)
+	sz2 := uint32(0)
+	if elfInfo != nil {
+		sz1, _ = elfInfo.GetFuncSize(from)
+		sz2, _ = elfInfo.GetFuncSize(to)
+	}
+
+	var err error
+	if sz1 == 0 {
+		sz1, err = GetFuncSizeByGuess(mode, from, true)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if sz2 == 0 {
+		sz2, err = GetFuncSizeByGuess(mode, from, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if sz1 > sz2 {
+		return nil, errors.New("sizeof source func > sizeof of target func")
+	}
+
+	fix, err2 := copyFuncInstruction(mode, from, to, int(sz1))
+	if err2 != nil {
+		return nil, err2
+	}
+
+	origin := makeSliceFromPointer(to, int(sz2))
+	sf := make([]byte, sz2)
+	copy(sf, origin)
+
+	curAddr := to
+	for _, f := range fix {
+		CopyInstruction(curAddr, f.Code)
+		curAddr += uintptr(len(f.Code))
+	}
+
+	return origin, nil
 }
 
 func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, error) {
@@ -55,29 +104,33 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 
 		fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
 		if err != nil {
-			return nil, err
+			origin, err2 := copyFunction(mode, target, trampoline)
+			if err2 != nil {
+				return nil, errors.New(fmt.Sprintf("both fix and copy failed, fix:%s, copy:%s", err.Error(), err2.Error()))
+			}
+			info.TrampolineOrig = origin
+		} else {
+			for _, v := range fix {
+				origin := makeSliceFromPointer(v.Addr, len(v.Code))
+				f := make([]byte, len(v.Code))
+				copy(f, origin)
+
+				// printInstructionFix(v, f)
+
+				CopyInstruction(v.Addr, v.Code)
+				v.Code = f
+				info.Fix = append(info.Fix, v)
+			}
+
+			jumpcode2 := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
+			f2 := makeSliceFromPointer(trampoline, insLen+len(jumpcode2)*2)
+			insLen2 := GetInsLenGreaterThan(mode, f2, insLen+len(jumpcode2))
+			info.TrampolineOrig = make([]byte, insLen2)
+			ts2 := makeSliceFromPointer(trampoline, insLen2)
+			copy(info.TrampolineOrig, ts2)
+			CopyInstruction(trampoline, ts)
+			CopyInstruction(trampoline+uintptr(insLen), jumpcode2)
 		}
-
-		for _, v := range fix {
-			origin := makeSliceFromPointer(v.Addr, len(v.Code))
-			f := make([]byte, len(v.Code))
-			copy(f, origin)
-
-			// printInstructionFix(v, f)
-
-			CopyInstruction(v.Addr, v.Code)
-			v.Code = f
-			info.Fix = append(info.Fix, v)
-		}
-
-		jumpcode2 := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
-		f := makeSliceFromPointer(trampoline, insLen+len(jumpcode2)*2)
-		insLen2 := GetInsLenGreaterThan(mode, f, insLen+len(jumpcode2))
-		info.TrampolineOrig = make([]byte, insLen2)
-		ts2 := makeSliceFromPointer(trampoline, insLen2)
-		copy(info.TrampolineOrig, ts2)
-		CopyInstruction(trampoline, ts)
-		CopyInstruction(trampoline+uintptr(insLen), jumpcode2)
 	}
 
 	CopyInstruction(target, jumpcode)

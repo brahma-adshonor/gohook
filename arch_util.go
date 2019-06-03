@@ -337,7 +337,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 	return fix, nil
 }
 
-func GetFuncSizeByGuess(mode int, start uintptr) (uint32, error) {
+func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
 	funcPrologue := funcPrologue64
 	if mode == 32 {
 		funcPrologue = funcPrologue32
@@ -361,6 +361,9 @@ func GetFuncSizeByGuess(mode int, start uintptr) (uint32, error) {
 
 		if inst.Len == 1 && code[0] == 0xcc {
 			// 0xcc -> int3, trap to debugger, padding to function end
+			if minimal {
+				return curLen, nil
+			}
 			int3_found = true
 		} else if int3_found {
 			return curLen, nil
