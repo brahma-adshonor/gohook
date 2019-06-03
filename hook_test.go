@@ -36,7 +36,7 @@ func TestHook(t *testing.T) {
 	ret1 := foo1(23, "sval for foo1")
 	assert.Equal(t, 65, ret1)
 
-	err := Hook(64, foo1, foo2, foo3)
+	err := Hook(foo1, foo2, foo3)
 	assert.Nil(t, err)
 
 	ret2 := foo1(23, "sval for foo1")
@@ -54,7 +54,7 @@ func TestHook(t *testing.T) {
 
 	ret6 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
 	assert.Equal(t, true, ret6)
-	Hook(64, bytes.Contains, myByteContain, nil)
+	Hook(bytes.Contains, myByteContain, nil)
 	ret7 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
 	assert.Equal(t, false, ret7)
 	UnHook(bytes.Contains)
@@ -92,8 +92,8 @@ func TestInstanceHook(t *testing.T) {
 	buff1 := bytes.NewBufferString("abcd")
 	assert.Equal(t, 4, buff1.Len())
 
-	err1 := HookMethod(64, buff1, "Grow", myBuffGrow, nil)
-	err2 := HookMethod(64, buff1, "Len", myBuffLen, myBuffLenTramp)
+	err1 := HookMethod(buff1, "Grow", myBuffGrow, nil)
+	err2 := HookMethod(buff1, "Len", myBuffLen, myBuffLenTramp)
 
 	assert.Nil(t, err1)
 	assert.Nil(t, err2)
@@ -102,7 +102,7 @@ func TestInstanceHook(t *testing.T) {
 	buff1.Grow(233)                 // no grow
 	assert.Equal(t, 4, buff1.Len()) // Len() is inlined
 
-	err3 := HookMethod(64, buff1, "WriteString", myBuffWriteString, myBuffWriteStringTramp)
+	err3 := HookMethod(buff1, "WriteString", myBuffWriteString, myBuffWriteStringTramp)
 	assert.Nil(t, err3)
 
 	sz1, _ := buff1.WriteString("miliao")
@@ -474,7 +474,7 @@ func TestStackGrowth(t *testing.T) {
 	SetMinJmpCodeSize(64)
 	defer SetMinJmpCodeSize(0)
 
-	Hook(64, victim, victimReplace, victimTrampoline)
+	Hook(victim, victimReplace, victimTrampoline)
 
 	ret := victim(0, 1000, 100000, "ab", "miliao", "see")
 

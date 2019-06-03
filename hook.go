@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"unsafe"
 )
 
 type HookInfo struct {
@@ -15,14 +16,26 @@ type HookInfo struct {
 }
 
 var (
-	g_all = make(map[uintptr]HookInfo)
+	archMode = 64
+	g_all    = make(map[uintptr]HookInfo)
 )
 
-func Hook(mode int, target, replacement, trampoline interface{}) error {
+func init() {
+	sz := unsafe.Sizeof(uintptr(0))
+	if sz == 4 {
+		archMode = 32
+	}
+}
+
+func GetArchMode() int {
+	return archMode
+}
+
+func Hook(target, replacement, trampoline interface{}) error {
 	t := reflect.ValueOf(target)
 	r := reflect.ValueOf(replacement)
 	t2 := reflect.ValueOf(trampoline)
-	return doHook(mode, t, r, t2)
+	return doHook(archMode, t, r, t2)
 }
 
 func UnHook(target interface{}) error {
@@ -30,7 +43,7 @@ func UnHook(target interface{}) error {
 	return doUnHook(t.Pointer())
 }
 
-func HookMethod(mode int, instance interface{}, method string, replacement, trampoline interface{}) error {
+func HookMethod(instance interface{}, method string, replacement, trampoline interface{}) error {
 	target := reflect.TypeOf(instance)
 	m, ok := target.MethodByName(method)
 	if !ok {
@@ -38,7 +51,7 @@ func HookMethod(mode int, instance interface{}, method string, replacement, tram
 	}
 	r := reflect.ValueOf(replacement)
 	t := reflect.ValueOf(trampoline)
-	return doHook(mode, m.Func, r, t)
+	return doHook(archMode, m.Func, r, t)
 }
 
 func UnHookMethod(instance interface{}, methodName string) error {
