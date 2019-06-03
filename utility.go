@@ -48,7 +48,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			sz, _ = elfInfo.GetFuncSize(target)
 		}
 
-		if len(jumpcode) > 5 || sz > 0 {
+		if insLen > 5 || sz > 0 {
 			//if size of jumpcode == 5, there is no chance we will mess up with jmp instruction
 			//in this case we better dont fix code if we can not get function size
 			fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)

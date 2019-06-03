@@ -470,6 +470,7 @@ func victimReplace(a, b, c int, e, f, g string) int {
 }
 
 func TestStackGrowth(t *testing.T) {
+
 	SetMinJmpCodeSize(64)
 	defer SetMinJmpCodeSize(0)
 
