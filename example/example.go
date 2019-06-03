@@ -82,7 +82,10 @@ func hookMethod() {
 	sz2 := buff.Len()
 	sz3 := myBuffLenTramp(buff)
 
-	fmt.Printf("old sz:%d, new sz:%d, copy func:%d\n", sz1, sz2, sz3)
+	hook.UnHookMethod(buff, "Len")
+
+	sz4 := myBuffLen(buff)
+	fmt.Printf("old sz:%d, new sz:%d, copy func:%d, recover:%d\n", sz1, sz2, sz3, sz4)
 }
 
 func main() {
