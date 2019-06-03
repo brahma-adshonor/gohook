@@ -158,7 +158,7 @@ func calcOffset(call bool, insSz int, startAddr, curAddr, to uintptr, to_sz int,
 		absAddr = to + (absAddr - startAddr)
 	}
 
-	return int64(absAddr - newAddr - uintptr(insSz))
+	return int64(uint64(absAddr) - uint64(newAddr) - uint64(insSz))
 }
 
 func FixOneInstruction(mode int, startAddr, curAddr uintptr, code []byte, to uintptr, to_sz int) (int, int, []byte) {

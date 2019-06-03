@@ -27,7 +27,11 @@ func hookFunc() {
 
     err := hook.Hook(64, foo1, foo2, foo3)
 
-    fmt.Printf("hook done, err:%s\n", err.Error())
+    fmt.Printf("hook done\n")
+    if err != nil {
+        fmt.Printf("err:%s\n", err.Error())
+        return
+    }
 
     ret2 := foo1(23, "miliao for foo1 after hook")
 
