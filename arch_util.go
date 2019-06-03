@@ -337,7 +337,7 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 	return fix, nil
 }
 
-func GetFuncSize(mode int, start uintptr) (uint32, error) {
+func GetFuncSizeByGuess(mode int, start uintptr) (uint32, error) {
 	funcPrologue := funcPrologue64
 	if mode == 32 {
 		funcPrologue = funcPrologue32
