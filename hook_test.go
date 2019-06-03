@@ -454,22 +454,22 @@ func victim(a, b, c int, e, f, g string) int {
 }
 
 func victimTrampoline(a, b, c int, e, f, g string) int {
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
-	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
 
 	for {
 		if (a % 2) != 0 {
-			fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, g, 0x23)
+			fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
 		} else {
 			a++
 		}
@@ -504,4 +504,36 @@ func TestStackGrowth(t *testing.T) {
 	ret := victim(0, 1000, 100000, "ab", "miliao", "see")
 
 	assert.Equal(t, 100042, ret)
+
+	UnHook(victim)
+
+	fmt.Printf("after unHook\n")
+	victimReplace(98, 2, 3, "ab", "ef", "g")
+}
+
+func TestFuncSize(t *testing.T) {
+	addr1 := GetFuncAddr(victim)
+	addr2 := GetFuncAddr(victimReplace)
+	addr3 := GetFuncAddr(victimTrampoline)
+
+	elf, err := NewElfInfo()
+	assert.Nil(t, err)
+
+	sz1, err1 := elf.GetFuncSize(addr1)
+	assert.Nil(t, err1)
+	sz11, err11 := GetFuncSize(GetArchMode(), addr1)
+	assert.Nil(t, err11)
+	assert.Equal(t, sz1, sz11)
+
+	sz2, err2 := elf.GetFuncSize(addr2)
+	assert.Nil(t, err2)
+	sz21, err21 := GetFuncSize(GetArchMode(), addr2)
+	assert.Nil(t, err21)
+	assert.Equal(t, sz2, sz21)
+
+	sz3, err3 := elf.GetFuncSize(addr3)
+	assert.Nil(t, err3)
+	sz31, err31 := GetFuncSize(GetArchMode(), addr3)
+	assert.Nil(t, err31)
+	assert.Equal(t, sz3, sz31)
 }

@@ -18,7 +18,7 @@ var (
 	minJmpCodeSize = 0
 	elfInfo, _     = NewElfInfo()
 	funcPrologue32 = []byte{0x65, 0x8b, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x8b, 0x89, 0xfc, 0xff, 0xff, 0xff}
-	funcPrologue64 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48, 0x8d, 0x44, 0x24, 0xe0}
+	funcPrologue64 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48}
 
 	// ======================condition jump instruction========================
 	// JA JAE JB JBE JCXZ JE JECXZ JG JGE JL JLE JMP JNE JNO JNP JNS JO JP JRCXZ JS
@@ -350,6 +350,7 @@ func GetFuncSize(mode int, start uintptr) (uint32, error) {
 		return 0, errors.New(fmt.Sprintf("no func prologue, addr:0x%x", start))
 	}
 
+	int3_found := false
 	curLen := uint32(0)
 
 	for {
@@ -360,6 +361,8 @@ func GetFuncSize(mode int, start uintptr) (uint32, error) {
 
 		if inst.Len == 1 && code[0] == 0xcc {
 			// 0xcc -> int3, trap to debugger, padding to function end
+			int3_found = true
+		} else if int3_found {
 			return curLen, nil
 		}
 

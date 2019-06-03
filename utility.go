@@ -70,21 +70,17 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			info.Fix = append(info.Fix, v)
 		}
 
+		jumpcode2 := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
+		f := makeSliceFromPointer(trampoline, insLen+len(jumpcode2)*2)
+		insLen2 := GetInsLenGreaterThan(mode, f, insLen+len(jumpcode2))
+		info.TrampolineOrig = make([]byte, insLen2)
+		ts2 := makeSliceFromPointer(trampoline, insLen2)
+		copy(info.TrampolineOrig, ts2)
 		CopyInstruction(trampoline, ts)
+		CopyInstruction(trampoline+uintptr(insLen), jumpcode2)
 	}
 
 	CopyInstruction(target, jumpcode)
-
-	if trampoline != uintptr(0) {
-		jumpcode = genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
-		insLen2 := len(jumpcode)
-		info.TrampolineOrig = make([]byte, len(info.Origin)+insLen2)
-
-		ts2 := makeSliceFromPointer(trampoline, len(info.Origin)+insLen2)
-		copy(info.TrampolineOrig, ts2)
-		CopyInstruction(trampoline+uintptr(insLen), jumpcode)
-	}
-
 	return info, nil
 }
 
@@ -99,4 +95,9 @@ func printInstructionFix(v CodeFix, origin []byte) {
 		fmt.Printf(" %x", c)
 	}
 	fmt.Printf("\n")
+}
+
+func GetFuncAddr(f interface{}) uintptr {
+	fv := reflect.ValueOf(f)
+	return fv.Pointer()
 }
