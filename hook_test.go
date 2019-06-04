@@ -9,6 +9,25 @@ import (
 	"unsafe"
 )
 
+func myPrintf(f string, a ...interface{}) (n int, err error) {
+	myPrintfTramp("prefixed by miliao -- ")
+	return myPrintfTramp(f, a...)
+}
+
+func myPrintfTramp(f string, a ...interface{}) (n int, err error) {
+	fmt.Printf("hello")
+	fmt.Printf("hello")
+	fmt.Printf("hello")
+	fmt.Printf("hello")
+	fmt.Printf("hello")
+	return fmt.Printf("hello")
+}
+
+func init() {
+	fmt.Printf("test file init()\n")
+	Hook(fmt.Printf, myPrintf, myPrintfTramp)
+}
+
 func foo1(v1 int, v2 string) int {
 	fmt.Printf("foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
@@ -536,4 +555,51 @@ func TestFuncSize(t *testing.T) {
 	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, false)
 	assert.Nil(t, err31)
 	assert.Equal(t, sz3, sz31)
+}
+
+func mySprintf(format string, a ...interface{}) string {
+	addr1 := GetFuncAddr(victim)
+	addr2 := GetFuncAddr(victimReplace)
+	addr3 := GetFuncAddr(victimTrampoline)
+
+	elf, err := NewElfInfo()
+	fmt.Println("show:", elf, err)
+
+	sz1, err1 := elf.GetFuncSize(addr1)
+	fmt.Println("show:", sz1, err1)
+
+	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, false)
+	fmt.Println("show:", sz11, err11)
+
+	sz2, err2 := elf.GetFuncSize(addr2)
+	fmt.Println("show:", sz2, err2)
+	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, false)
+	fmt.Println("show:", sz21, err21)
+
+	sz3, err3 := elf.GetFuncSize(addr3)
+	fmt.Println("show:", sz3, err3)
+	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, false)
+	fmt.Println("show:", sz31, err31)
+
+	return ""
+}
+
+func TestCopyFunc(t *testing.T) {
+	addr := GetFuncAddr(mySprintf)
+	sz := GetFuncInsSize(mySprintf)
+
+	txt := makeSliceFromPointer(addr, int(sz))
+
+	fs := "some random text, from %d,%S,%T"
+	s1 := fmt.Sprintf(fs, 233, "miliao test sprintf", addr)
+
+	origin, err := CopyFunction(fmt.Sprintf, mySprintf)
+
+	assert.Nil(t, err)
+	assert.Equal(t, len(txt), len(origin))
+	assert.Equal(t, txt, origin)
+
+	s2 := mySprintf(fs, 233, "miliao test sprintf", addr)
+
+	assert.Equal(t, s1, s2)
 }

@@ -36,7 +36,27 @@ func CopyInstruction(location uintptr, data []byte) {
 	}
 }
 
-func copyFunction(mode int, from, to uintptr) ([]byte, error) {
+func GetFuncInsSize(f interface{}) uint32 {
+	sz := uint32(0)
+	ptr := reflect.ValueOf(f).Pointer()
+	if elfInfo != nil {
+		sz, _ = elfInfo.GetFuncSize(ptr)
+	}
+
+	if sz == 0 {
+		sz, _ = GetFuncSizeByGuess(GetArchMode(), ptr, true)
+	}
+
+	return sz
+}
+
+func CopyFunction(from, to interface{}) ([]byte, error) {
+	s := reflect.ValueOf(from).Pointer()
+	d := reflect.ValueOf(to).Pointer()
+	return doCopyFunction(GetArchMode(), s, d)
+}
+
+func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 	sz1 := uint32(0)
 	sz2 := uint32(0)
 	if elfInfo != nil {
@@ -104,7 +124,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 
 		fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
 		if err != nil {
-			origin, err2 := copyFunction(mode, target, trampoline)
+			origin, err2 := doCopyFunction(mode, target, trampoline)
 			if err2 != nil {
 				return nil, errors.New(fmt.Sprintf("both fix and copy failed, fix:%s, copy:%s", err.Error(), err2.Error()))
 			}
