@@ -1,4 +1,4 @@
-package hook
+package gohook
 
 import (
 	"debug/elf"

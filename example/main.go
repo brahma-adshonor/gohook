@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"golang.org/x/arch/x86/x86asm"
-	"hook"
+	"gohook"
 )
 
 func foo1(v1 int, v2 string) int {
@@ -28,7 +28,7 @@ func TestAsm() {
 
 	ret1 := foo1(23, "sval for foo1")
 
-	hook.Hook(foo1, foo2, foo3)
+	gohook.Hook(foo1, foo2, foo3)
 
 	ret2 := foo1(23, "sval for foo1")
 
@@ -48,7 +48,7 @@ func main() {
 	buff := bytes.NewBufferString("abcd")
 	fmt.Printf("len(buff):%d\n", buff.Len())
 
-	err1 := hook.HookMethod(buff, "Len", myBuffLen, myBuffLenTramp)
+	err1 := gohook.HookMethod(buff, "Len", myBuffLen, myBuffLenTramp)
 	if err1 != nil {
 		fmt.Printf("errors:%s\n", err1.Error())
 	}
@@ -84,7 +84,7 @@ func main() {
 
 	fmt.Printf("\n")
 
-	fullInstLen := hook.GetInsLenGreaterThan(hook.GetArchMode(), code, 11)
+	fullInstLen := gohook.GetInsLenGreaterThan(gohook.GetArchMode(), code, 11)
 	fmt.Printf("full inst len:%d\n", fullInstLen)
 }
 
@@ -150,10 +150,10 @@ func victimReplace(a, b, c int, e, f, g string) int {
 }
 
 func TestStackGrowth() {
-	hook.SetMinJmpCodeSize(64)
-	defer hook.SetMinJmpCodeSize(0)
+	gohook.SetMinJmpCodeSize(64)
+	defer gohook.SetMinJmpCodeSize(0)
 
-	hook.Hook(victim, victimReplace, victimTrampoline)
+	gohook.Hook(victim, victimReplace, victimTrampoline)
 
 	victim(0, 1000, 100000, "ab", "miliao", "see")
 }
