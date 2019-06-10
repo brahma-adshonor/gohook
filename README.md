@@ -7,8 +7,8 @@ Read this blogpost for further explanation of the implementation detail: https:/
 The general idea of this library is that gohook will find out the address of a go function and then insert a few jump instructions to redirect execution flow to the new function.
 
 there are 3 key steps to perform a hook:
-1. find out the address of a function, this can be done by go reflect functionality.
-2. inject jump code into target function.
+1. find out the address of a function, this can be accomplished by standard reflect library.
+2. inject jump code into target function, with carefully crafted binary instruction.
 3. implement trampoline function to enable calling back to the original function.
 
 It may seem risky and dangerous to perform operations like these at first glance, I can understand the concerns... but this is somehow common practice in c/c++ though, you can google it, search for "hot patching" something like that for more information.
