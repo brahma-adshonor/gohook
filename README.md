@@ -1,4 +1,4 @@
-## gohook
+## Gohook
 A funny library to hook golang function dynamically at runtime, enabling functionality like patching in dynamic language.
 
 Read this blogpost for further explanation of the implementation detail: https://www.cnblogs.com/catch/p/10973611.html
@@ -15,10 +15,10 @@ It may seem risky and dangerous to perform operations like these at first glance
 
 ## Using gohook
 Four api are exported from this library, the signatures are simple as illustrated following:
-1. func Hook(target, replace, trampoline interface{}) error;
-2. func UnHook(target interface{}) error;
-3. func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;
-4. func UnHookMethod(instance interface{}, method string) error;
+1. `func Hook(target, replace, trampoline interface{}) error;`
+2. `func UnHook(target interface{}) error;`
+3. `func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;`
+4. `func UnHookMethod(instance interface{}, method string) error;`
 
 The first 2 functions are used to hook/unhook regular functions, the rest are for instance method, as the naming imply.
 
