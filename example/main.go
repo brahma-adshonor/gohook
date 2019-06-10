@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"golang.org/x/arch/x86/x86asm"
-	"hook"
+	"gohook"
 )
 
 func foo1(v1 int, v2 string) int {
@@ -28,7 +28,7 @@ func TestAsm() {
 
 	ret1 := foo1(23, "sval for foo1")
 
-	hook.Hook(foo1, foo2, foo3)
+	gohook.Hook(foo1, foo2, foo3)
 
 	ret2 := foo1(23, "sval for foo1")
 
@@ -48,7 +48,7 @@ func main() {
 	buff := bytes.NewBufferString("abcd")
 	fmt.Printf("len(buff):%d\n", buff.Len())
 
-	err1 := hook.HookMethod(buff, "Len", myBuffLen, myBuffLenTramp)
+	err1 := gohook.HookMethod(buff, "Len", myBuffLen, myBuffLenTramp)
 	if err1 != nil {
 		fmt.Printf("errors:%s\n", err1.Error())
 	}
@@ -57,8 +57,9 @@ func main() {
 
 	//code := []byte {0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x3b,0x61}
 	//code := []byte {0x48,0x3b,0x61,0x10}
-	// code := []byte {0x8d,0x6c,0x24,0x10}
-	code := []byte{0x64, 0x48, 0x8b, 0xc, 0x25, 0xf8, 0xff, 0xff, 0xff}
+	//code := []byte {0x8d,0x6c,0x24,0x10}
+	//code := []byte{0x64, 0x48, 0x8b, 0xc, 0x25, 0xf8, 0xff, 0xff, 0xff}
+	code := []byte{0xC7, 0x44, 0x24, 0xFC, 0x01, 0x02, 0x03, 0x04}
 	//code := []byte {0x0f,0x86,0xa1,0x00, 0x00,0x00,0x00,0x00}
 	//code := []byte {0xe8,0x8f,0x89,0xe0,0xff}
 	inst, err := x86asm.Decode(code, 64)
@@ -84,7 +85,7 @@ func main() {
 
 	fmt.Printf("\n")
 
-	fullInstLen := hook.GetInsLenGreaterThan(hook.GetArchMode(), code, 11)
+	fullInstLen := gohook.GetInsLenGreaterThan(gohook.GetArchMode(), code, 11)
 	fmt.Printf("full inst len:%d\n", fullInstLen)
 }
 
@@ -150,10 +151,10 @@ func victimReplace(a, b, c int, e, f, g string) int {
 }
 
 func TestStackGrowth() {
-	hook.SetMinJmpCodeSize(64)
-	defer hook.SetMinJmpCodeSize(0)
+	gohook.SetMinJmpCodeSize(64)
+	defer gohook.SetMinJmpCodeSize(0)
 
-	hook.Hook(victim, victimReplace, victimTrampoline)
+	gohook.Hook(victim, victimReplace, victimTrampoline)
 
 	victim(0, 1000, 100000, "ab", "miliao", "see")
 }
