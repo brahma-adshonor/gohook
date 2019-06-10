@@ -419,6 +419,8 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	var code []byte
 	relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
 
+	// relative = false
+
 	if relative {
 		var dis uint32
 		if to > from {
@@ -459,8 +461,8 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 		code = []byte{
 			0x68, //push
 			byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
-			0xc7, 0x44, 0x24, // mov $value, -4%rsp
-			0xfc, // rsp - 4
+			0xc7, 0x44, 0x24, // mov $value, 4%rsp
+			0x04, // rsp + 4
 			byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
 			0xc3, // retn
 		}
