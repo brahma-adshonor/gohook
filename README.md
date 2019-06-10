@@ -3,7 +3,7 @@ A funny library to hook golang function dynamically at runtime, enabling functio
 
 Read this blogpost for further explanation of the implementation detail: https://www.cnblogs.com/catch/p/10973611.html
 
-## how it works
+## How it works
 The general idea of this library is that gohook will find out the address of a go function and then insert a few jump instructions to redirect execution flow to the new function.
 
 there are 3 key steps to perform a hook:
@@ -67,5 +67,5 @@ For more usage example, please refer to the example folder.
 ## Notes
 1. 32 bit mode may not work, far jump is not handled.
 2. trampoline is used to make room for the original function, it will be overwrited.
-3. in case of small function which may be inlined, gohook may failed .
-4. this library is created for testing, hence not fully tested in production, user discretion is advised.
+3. in case of small function which may be inlined, gohook may fail.
+4. this library is created for integrated testing, and not fully tested in production(yet), user discretion is advised.
