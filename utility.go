@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"syscall"
 	"unsafe"
 )
 
@@ -24,16 +23,6 @@ func makeSliceFromPointer(p uintptr, length int) []byte {
 		Len:  length,
 		Cap:  length,
 	}))
-}
-
-func CopyInstruction(location uintptr, data []byte) {
-	f := makeSliceFromPointer(location, len(data))
-	setPageWritable(location, len(data), syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC)
-	sz := copy(f, data[:])
-	setPageWritable(location, len(data), syscall.PROT_READ|syscall.PROT_EXEC)
-	if sz != len(data) {
-		panic("copy instruction to target failed")
-	}
 }
 
 func GetFuncInsSize(f interface{}) uint32 {

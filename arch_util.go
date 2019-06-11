@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"golang.org/x/arch/x86/x86asm"
 	"math"
-	"syscall"
 )
 
 type CodeFix struct {
@@ -67,21 +66,6 @@ func SetFuncPrologue(mode int, data []byte) {
 	} else {
 		funcPrologue64 = make([]byte, len(data))
 		copy(funcPrologue64, data)
-	}
-}
-
-func getPageAddr(ptr uintptr) uintptr {
-	return ptr & ^(uintptr(syscall.Getpagesize() - 1))
-}
-
-func setPageWritable(addr uintptr, length int, prot int) {
-	pageSize := syscall.Getpagesize()
-	for p := getPageAddr(addr); p < addr+uintptr(length); p += uintptr(pageSize) {
-		page := makeSliceFromPointer(p, pageSize)
-		err := syscall.Mprotect(page, prot)
-		if err != nil {
-			panic(err)
-		}
 	}
 }
 
