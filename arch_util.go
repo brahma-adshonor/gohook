@@ -336,9 +336,11 @@ func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
 	prologueLen := len(funcPrologue)
 	code := makeSliceFromPointer(start, 16) // instruction takes at most 16 bytes
 
+	/* prologue is not required
 	if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
 		return 0, errors.New(fmt.Sprintf("no func prologue, addr:0x%x", start))
 	}
+	*/
 
 	int3_found := false
 	curLen := uint32(0)
@@ -399,6 +401,8 @@ func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) 
 		curAddr = from + uintptr(curSz)
 	}
 
+	to_addr := (to + (curAddr - from))
+	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: to_addr})
 	return fix, nil
 }
 

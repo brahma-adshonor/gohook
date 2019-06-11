@@ -41,6 +41,12 @@ func myBuffLen(b *bytes.Buffer) int {
 }
 
 func myBuffLenTramp(b *bytes.Buffer) int {
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
 	return 1000
 }
 

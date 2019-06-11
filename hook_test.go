@@ -78,7 +78,8 @@ func TestHook(t *testing.T) {
 
 	ret6 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
 	assert.Equal(t, true, ret6)
-	Hook(bytes.Contains, myByteContain, nil)
+	err = Hook(bytes.Contains, myByteContain, nil)
+	assert.Nil(t, err)
 	ret7 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
 	assert.Equal(t, false, ret7)
 	UnHook(bytes.Contains)
@@ -551,25 +552,36 @@ func TestFuncSize(t *testing.T) {
 	addr3 := GetFuncAddr(victimTrampoline)
 
 	elf, err := NewElfInfo()
-	assert.Nil(t, err)
+	hasElf := (err == nil)
 
-	sz1, err1 := elf.GetFuncSize(addr1)
-	assert.Nil(t, err1)
 	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, false)
 	assert.Nil(t, err11)
-	assert.Equal(t, sz1, sz11)
 
-	sz2, err2 := elf.GetFuncSize(addr2)
-	assert.Nil(t, err2)
+	if hasElf {
+		sz1, err1 := elf.GetFuncSize(addr1)
+		assert.Nil(t, err1)
+		assert.Equal(t, sz1, sz11)
+	} else {
+		assert.True(t, sz11 > 0)
+	}
+
 	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, false)
 	assert.Nil(t, err21)
-	assert.Equal(t, sz2, sz21)
 
-	sz3, err3 := elf.GetFuncSize(addr3)
-	assert.Nil(t, err3)
+	if hasElf {
+		sz2, err2 := elf.GetFuncSize(addr2)
+		assert.Nil(t, err2)
+		assert.Equal(t, sz2, sz21)
+	}
+
 	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, false)
 	assert.Nil(t, err31)
-	assert.Equal(t, sz3, sz31)
+
+	if hasElf {
+		sz3, err3 := elf.GetFuncSize(addr3)
+		assert.Nil(t, err3)
+		assert.Equal(t, sz3, sz31)
+	}
 }
 
 func mySprintf(format string, a ...interface{}) string {
@@ -605,7 +617,9 @@ func TestCopyFunc(t *testing.T) {
 	addr := GetFuncAddr(mySprintf)
 	sz := GetFuncInsSize(mySprintf)
 
-	txt := makeSliceFromPointer(addr, int(sz))
+	tp := makeSliceFromPointer(addr, int(sz))
+	txt := make([]byte, int(sz))
+	copy(txt, tp)
 
 	fs := "some random text, from %d,%S,%T"
 	s1 := fmt.Sprintf(fs, 233, "miliao test sprintf", addr)
@@ -619,4 +633,9 @@ func TestCopyFunc(t *testing.T) {
 	s2 := mySprintf(fs, 233, "miliao test sprintf", addr)
 
 	assert.Equal(t, s1, s2)
+
+	sz2 := GetFuncInsSize(fmt.Sprintf)
+	sz3 := GetFuncInsSize(mySprintf)
+
+	assert.Equal(t, sz2, sz3)
 }

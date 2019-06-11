@@ -62,13 +62,13 @@ func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 	}
 
 	if sz2 == 0 {
-		sz2, err = GetFuncSizeByGuess(mode, from, false)
+		sz2, err = GetFuncSizeByGuess(mode, to, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if sz1 > sz2 {
+	if sz1 > sz2+1 { // add trailing int3 to the end
 		return nil, errors.New("sizeof source func > sizeof of target func")
 	}
 
@@ -87,7 +87,7 @@ func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 		curAddr += uintptr(len(f.Code))
 	}
 
-	return origin, nil
+	return sf, nil
 }
 
 func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, error) {

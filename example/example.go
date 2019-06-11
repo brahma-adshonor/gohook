@@ -58,7 +58,11 @@ func myBuffLen(b *bytes.Buffer) int {
 }
 
 func myBuffLenTramp(b *bytes.Buffer) int {
-	fmt.Println("calling myBuffLenTramp")
+	defer func() {}() // prevent inline
+	fmt.Println("calling myBuffLenTramp1")
+	fmt.Println("calling myBuffLenTramp2")
+	fmt.Println("calling myBuffLenTramp3")
+	fmt.Println("calling myBuffLenTramp4")
 	return 1000
 }
 
