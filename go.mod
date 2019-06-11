@@ -1,4 +1,4 @@
-module hook
+module gohook
 
 go 1.12
 
