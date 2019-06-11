@@ -646,8 +646,9 @@ func TestCopyFunc(t *testing.T) {
 
 	assert.Equal(t, s1, s2)
 
-	sz2 := GetFuncInsSize(fmt.Sprintf)
-	sz3 := GetFuncInsSize(mySprintf)
+	addr2 := GetFuncAddr(fmt.Sprintf)
+	sz2, _ := GetFuncSizeByGuess(GetArchMode(), addr2, true)
+	sz3, _ := GetFuncSizeByGuess(GetArchMode(), addr, true)
 
 	assert.Equal(t, sz2, sz3)
 }
