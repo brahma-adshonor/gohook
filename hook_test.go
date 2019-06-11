@@ -29,6 +29,8 @@ func init() {
 }
 
 func foo1(v1 int, v2 string) int {
+	defer func() {}() // prevent inline
+
 	fmt.Printf("foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
 }
