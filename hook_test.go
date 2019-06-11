@@ -42,6 +42,7 @@ func foo2(v1 int, v2 string) int {
 }
 
 func foo3(v1 int, v2 string) int {
+	defer func() {}() // prevent inline
 	fmt.Printf("foo3:%d(%s)\n", v1, v2)
 	return v1 + 10000
 }
@@ -52,6 +53,8 @@ func myByteContain(a, b []byte) bool {
 }
 
 func TestHook(t *testing.T) {
+	ResetFuncPrologue()
+
 	fmt.Printf("start testing...\n")
 
 	ret1 := foo1(23, "sval for foo1")
@@ -110,6 +113,7 @@ func myBuffWriteStringTramp(b *bytes.Buffer, s string) (int, error) {
 }
 
 func TestInstanceHook(t *testing.T) {
+	ResetFuncPrologue()
 	buff1 := bytes.NewBufferString("abcd")
 	assert.Equal(t, 4, buff1.Len())
 
@@ -140,6 +144,7 @@ func TestInstanceHook(t *testing.T) {
 }
 
 func TestGetInsLenGreaterThan(t *testing.T) {
+	ResetFuncPrologue()
 	c1 := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8}
 	c2 := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff}
 
@@ -160,6 +165,7 @@ func TestGetInsLenGreaterThan(t *testing.T) {
 }
 
 func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
+	ResetFuncPrologue()
 	// jump from within patching erea to outside, negative fix
 	c1 := []byte{0x75, 0x40} // jne 64
 
@@ -237,6 +243,7 @@ func byteToInt32(d []byte) int32 {
 }
 
 func TestFixOneInstructionForSixByteJmp(t *testing.T) {
+	ResetFuncPrologue()
 	// jump from within patching erea to outside, negative fix
 	c1 := []byte{0x0f, 0x8d, 0x10, 0x00, 0x00, 0x00} // jge 16
 
@@ -409,6 +416,7 @@ func TestFixFuncCode(t *testing.T) {
 		/*58:*/ 0x90, // nop                                  sz:1
 	}
 
+	SetFuncPrologue(64, []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48})
 	sh1 := (*reflect.SliceHeader)((unsafe.Pointer(&c1)))
 
 	move_sz := 45
@@ -520,7 +528,10 @@ func TestStackGrowth(t *testing.T) {
 	SetMinJmpCodeSize(64)
 	defer SetMinJmpCodeSize(0)
 
-	Hook(victim, victimReplace, victimTrampoline)
+	ResetFuncPrologue()
+
+	err := Hook(victim, victimReplace, victimTrampoline)
+	assert.Nil(t, err)
 
 	ret := victim(0, 1000, 100000, "ab", "miliao", "see")
 
@@ -533,6 +544,8 @@ func TestStackGrowth(t *testing.T) {
 }
 
 func TestFuncSize(t *testing.T) {
+	ResetFuncPrologue()
+
 	addr1 := GetFuncAddr(victim)
 	addr2 := GetFuncAddr(victimReplace)
 	addr3 := GetFuncAddr(victimTrampoline)
@@ -587,6 +600,8 @@ func mySprintf(format string, a ...interface{}) string {
 }
 
 func TestCopyFunc(t *testing.T) {
+	ResetFuncPrologue()
+
 	addr := GetFuncAddr(mySprintf)
 	sz := GetFuncInsSize(mySprintf)
 

@@ -17,6 +17,9 @@ var (
 	minJmpCodeSize = 0
 	elfInfo, _     = NewElfInfo()
 
+	funcPrologue32 = defaultFuncPrologue32
+	funcPrologue64 = defaultFuncPrologue64
+
 	// ======================condition jump instruction========================
 	// JA JAE JB JBE JCXZ JE JECXZ JG JGE JL JLE JMP JNE JNO JNP JNS JO JP JRCXZ JS
 
@@ -55,6 +58,11 @@ const (
 
 func SetMinJmpCodeSize(sz int) {
 	minJmpCodeSize = sz
+}
+
+func ResetFuncPrologue() {
+	funcPrologue32 = defaultFuncPrologue32
+	funcPrologue64 = defaultFuncPrologue64
 }
 
 func SetFuncPrologue(mode int, data []byte) {
