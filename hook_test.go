@@ -80,7 +80,10 @@ func TestHook(t *testing.T) {
 	assert.Equal(t, true, ret6)
 	err = Hook(bytes.Contains, myByteContain, nil)
 	assert.Nil(t, err)
-	ret7 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
+
+	fun := bytes.Contains // prevent inline
+	ret7 := fun([]byte{1, 2, 3}, []byte{2, 3})
+
 	assert.Equal(t, false, ret7)
 	UnHook(bytes.Contains)
 	ret8 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
@@ -110,6 +113,11 @@ func myBuffWriteString(b *bytes.Buffer, s string) (int, error) {
 
 func myBuffWriteStringTramp(b *bytes.Buffer, s string) (int, error) {
 	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
 	return 0, nil
 }
 
@@ -135,10 +143,14 @@ func TestInstanceHook(t *testing.T) {
 	assert.Equal(t, 1006, sz1)
 	assert.Equal(t, 10, buff1.Len()) // Len() is inlined
 
-	UnHookMethod(buff1, "WriteString")
+	err4 := UnHookMethod(buff1, "WriteString")
+	assert.Nil(t, err4)
+
+	flen := buff1.Len
+
 	sz2, _ := buff1.WriteString("miliao")
 	assert.Equal(t, 6, sz2)
-	assert.Equal(t, 16, buff1.Len()) // Len() is inlined
+	assert.Equal(t, 16, flen()) // Len() is inlined
 
 	sz3, _ := myBuffWriteStringTramp(nil, "sssssss")
 	assert.Equal(t, 0, sz3)
