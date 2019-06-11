@@ -20,12 +20,18 @@ func myPrintfTramp(f string, a ...interface{}) (n int, err error) {
 	fmt.Printf("hello")
 	fmt.Printf("hello")
 	fmt.Printf("hello")
+	defer func() {}()
 	return fmt.Printf("hello")
 }
 
 func init() {
 	fmt.Printf("test file init()\n")
-	Hook(fmt.Printf, myPrintf, myPrintfTramp)
+	err := Hook(fmt.Printf, myPrintf, myPrintfTramp)
+	if err != nil {
+		fmt.Printf("err:%s\n", err.Error())
+	} else {
+		fmt.Printf("hook fmt.Printf() done\n")
+	}
 }
 
 func foo1(v1 int, v2 string) int {

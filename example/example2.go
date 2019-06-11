@@ -18,6 +18,8 @@ func myPrintlnTramp(a ...interface{}) (n int, err error) {
     myPrintlnTramp(a...)
     myPrintlnTramp(a...)
 
+    defer func(){}()
+
     for {
         fmt.Printf("hello")
     }
@@ -27,5 +29,6 @@ func myPrintlnTramp(a ...interface{}) (n int, err error) {
 
 func main() {
 	gohook.Hook(fmt.Println, myPrintln, myPrintlnTramp)
-	fmt.Println("hello world!")
+	fn := fmt.Println
+	fn("hello world!")
 }
