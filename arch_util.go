@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"golang.org/x/arch/x86/x86asm"
 	"math"
-	"syscall"
 )
 
 type CodeFix struct {
@@ -17,8 +16,9 @@ type CodeFix struct {
 var (
 	minJmpCodeSize = 0
 	elfInfo, _     = NewElfInfo()
-	funcPrologue32 = []byte{0x65, 0x8b, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x8b, 0x89, 0xfc, 0xff, 0xff, 0xff}
-	funcPrologue64 = []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48}
+
+	funcPrologue32 = defaultFuncPrologue32
+	funcPrologue64 = defaultFuncPrologue64
 
 	// ======================condition jump instruction========================
 	// JA JAE JB JBE JCXZ JE JECXZ JG JGE JL JLE JMP JNE JNO JNP JNS JO JP JRCXZ JS
@@ -60,6 +60,11 @@ func SetMinJmpCodeSize(sz int) {
 	minJmpCodeSize = sz
 }
 
+func ResetFuncPrologue() {
+	funcPrologue32 = defaultFuncPrologue32
+	funcPrologue64 = defaultFuncPrologue64
+}
+
 func SetFuncPrologue(mode int, data []byte) {
 	if mode == 32 {
 		funcPrologue32 = make([]byte, len(data))
@@ -67,21 +72,6 @@ func SetFuncPrologue(mode int, data []byte) {
 	} else {
 		funcPrologue64 = make([]byte, len(data))
 		copy(funcPrologue64, data)
-	}
-}
-
-func getPageAddr(ptr uintptr) uintptr {
-	return ptr & ^(uintptr(syscall.Getpagesize() - 1))
-}
-
-func setPageWritable(addr uintptr, length int, prot int) {
-	pageSize := syscall.Getpagesize()
-	for p := getPageAddr(addr); p < addr+uintptr(length); p += uintptr(pageSize) {
-		page := makeSliceFromPointer(p, pageSize)
-		err := syscall.Mprotect(page, prot)
-		if err != nil {
-			panic(err)
-		}
 	}
 }
 
@@ -346,9 +336,11 @@ func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
 	prologueLen := len(funcPrologue)
 	code := makeSliceFromPointer(start, 16) // instruction takes at most 16 bytes
 
+	/* prologue is not required
 	if !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
 		return 0, errors.New(fmt.Sprintf("no func prologue, addr:0x%x", start))
 	}
+	*/
 
 	int3_found := false
 	curLen := uint32(0)
@@ -409,6 +401,8 @@ func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) 
 		curAddr = from + uintptr(curSz)
 	}
 
+	to_addr := (to + (curAddr - from))
+	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: to_addr})
 	return fix, nil
 }
 

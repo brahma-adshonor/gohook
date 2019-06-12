@@ -6,6 +6,7 @@ import (
 	"gohook"
 )
 
+//go:noinline
 func foo1(v1 int, v2 string) int {
 	fmt.Printf("foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
@@ -55,8 +56,12 @@ func myBuffLen(b *bytes.Buffer) int {
 	return 233 + myBuffLenTramp(b)
 }
 
+//go:noinline
 func myBuffLenTramp(b *bytes.Buffer) int {
-	fmt.Println("calling myBuffLenTramp")
+	fmt.Println("calling myBuffLenTramp1")
+	fmt.Println("calling myBuffLenTramp2")
+	fmt.Println("calling myBuffLenTramp3")
+	fmt.Println("calling myBuffLenTramp4")
 	return 1000
 }
 

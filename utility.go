@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"syscall"
 	"unsafe"
 )
 
@@ -24,16 +23,6 @@ func makeSliceFromPointer(p uintptr, length int) []byte {
 		Len:  length,
 		Cap:  length,
 	}))
-}
-
-func CopyInstruction(location uintptr, data []byte) {
-	f := makeSliceFromPointer(location, len(data))
-	setPageWritable(location, len(data), syscall.PROT_READ|syscall.PROT_WRITE|syscall.PROT_EXEC)
-	sz := copy(f, data[:])
-	setPageWritable(location, len(data), syscall.PROT_READ|syscall.PROT_EXEC)
-	if sz != len(data) {
-		panic("copy instruction to target failed")
-	}
 }
 
 func GetFuncInsSize(f interface{}) uint32 {
@@ -73,13 +62,13 @@ func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 	}
 
 	if sz2 == 0 {
-		sz2, err = GetFuncSizeByGuess(mode, from, false)
+		sz2, err = GetFuncSizeByGuess(mode, to, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if sz1 > sz2 {
+	if sz1 > sz2+1 { // add trailing int3 to the end
 		return nil, errors.New("sizeof source func > sizeof of target func")
 	}
 
@@ -98,7 +87,7 @@ func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 		curAddr += uintptr(len(f.Code))
 	}
 
-	return origin, nil
+	return sf, nil
 }
 
 func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, error) {

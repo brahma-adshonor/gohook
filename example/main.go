@@ -3,10 +3,11 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"golang.org/x/arch/x86/x86asm"
 	"gohook"
+	"golang.org/x/arch/x86/x86asm"
 )
 
+//go:noinline
 func foo1(v1 int, v2 string) int {
 	fmt.Printf("foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
@@ -40,6 +41,12 @@ func myBuffLen(b *bytes.Buffer) int {
 }
 
 func myBuffLenTramp(b *bytes.Buffer) int {
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
+	fmt.Printf("start testing...\n")
 	return 1000
 }
 

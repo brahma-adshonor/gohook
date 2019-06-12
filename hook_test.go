@@ -14,6 +14,7 @@ func myPrintf(f string, a ...interface{}) (n int, err error) {
 	return myPrintfTramp(f, a...)
 }
 
+//go:noinline
 func myPrintfTramp(f string, a ...interface{}) (n int, err error) {
 	fmt.Printf("hello")
 	fmt.Printf("hello")
@@ -25,10 +26,17 @@ func myPrintfTramp(f string, a ...interface{}) (n int, err error) {
 
 func init() {
 	fmt.Printf("test file init()\n")
-	Hook(fmt.Printf, myPrintf, myPrintfTramp)
+	err := Hook(fmt.Printf, myPrintf, myPrintfTramp)
+	if err != nil {
+		fmt.Printf("err:%s\n", err.Error())
+	} else {
+		fmt.Printf("hook fmt.Printf() done\n")
+	}
 }
 
+//go:noinline
 func foo1(v1 int, v2 string) int {
+
 	fmt.Printf("foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
 }
@@ -39,6 +47,7 @@ func foo2(v1 int, v2 string) int {
 	return v1 + 4200
 }
 
+//go:noinline
 func foo3(v1 int, v2 string) int {
 	fmt.Printf("foo3:%d(%s)\n", v1, v2)
 	return v1 + 10000
@@ -50,6 +59,8 @@ func myByteContain(a, b []byte) bool {
 }
 
 func TestHook(t *testing.T) {
+	ResetFuncPrologue()
+
 	fmt.Printf("start testing...\n")
 
 	ret1 := foo1(23, "sval for foo1")
@@ -73,8 +84,12 @@ func TestHook(t *testing.T) {
 
 	ret6 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
 	assert.Equal(t, true, ret6)
-	Hook(bytes.Contains, myByteContain, nil)
-	ret7 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
+	err = Hook(bytes.Contains, myByteContain, nil)
+	assert.Nil(t, err)
+
+	fun := bytes.Contains // prevent inline
+	ret7 := fun([]byte{1, 2, 3}, []byte{2, 3})
+
 	assert.Equal(t, false, ret7)
 	UnHook(bytes.Contains)
 	ret8 := bytes.Contains([]byte{1, 2, 3}, []byte{2, 3})
@@ -104,10 +119,16 @@ func myBuffWriteString(b *bytes.Buffer, s string) (int, error) {
 
 func myBuffWriteStringTramp(b *bytes.Buffer, s string) (int, error) {
 	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
+	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
 	return 0, nil
 }
 
 func TestInstanceHook(t *testing.T) {
+	ResetFuncPrologue()
 	buff1 := bytes.NewBufferString("abcd")
 	assert.Equal(t, 4, buff1.Len())
 
@@ -128,16 +149,21 @@ func TestInstanceHook(t *testing.T) {
 	assert.Equal(t, 1006, sz1)
 	assert.Equal(t, 10, buff1.Len()) // Len() is inlined
 
-	UnHookMethod(buff1, "WriteString")
+	err4 := UnHookMethod(buff1, "WriteString")
+	assert.Nil(t, err4)
+
+	flen := buff1.Len
+
 	sz2, _ := buff1.WriteString("miliao")
 	assert.Equal(t, 6, sz2)
-	assert.Equal(t, 16, buff1.Len()) // Len() is inlined
+	assert.Equal(t, 16, flen()) // Len() is inlined
 
 	sz3, _ := myBuffWriteStringTramp(nil, "sssssss")
 	assert.Equal(t, 0, sz3)
 }
 
 func TestGetInsLenGreaterThan(t *testing.T) {
+	ResetFuncPrologue()
 	c1 := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8}
 	c2 := []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff}
 
@@ -158,6 +184,7 @@ func TestGetInsLenGreaterThan(t *testing.T) {
 }
 
 func TestFixOneInstructionForTwoByteJmp(t *testing.T) {
+	ResetFuncPrologue()
 	// jump from within patching erea to outside, negative fix
 	c1 := []byte{0x75, 0x40} // jne 64
 
@@ -235,6 +262,7 @@ func byteToInt32(d []byte) int32 {
 }
 
 func TestFixOneInstructionForSixByteJmp(t *testing.T) {
+	ResetFuncPrologue()
 	// jump from within patching erea to outside, negative fix
 	c1 := []byte{0x0f, 0x8d, 0x10, 0x00, 0x00, 0x00} // jge 16
 
@@ -407,6 +435,7 @@ func TestFixFuncCode(t *testing.T) {
 		/*58:*/ 0x90, // nop                                  sz:1
 	}
 
+	SetFuncPrologue(64, []byte{0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, 0x48})
 	sh1 := (*reflect.SliceHeader)((unsafe.Pointer(&c1)))
 
 	move_sz := 45
@@ -518,7 +547,10 @@ func TestStackGrowth(t *testing.T) {
 	SetMinJmpCodeSize(64)
 	defer SetMinJmpCodeSize(0)
 
-	Hook(victim, victimReplace, victimTrampoline)
+	ResetFuncPrologue()
+
+	err := Hook(victim, victimReplace, victimTrampoline)
+	assert.Nil(t, err)
 
 	ret := victim(0, 1000, 100000, "ab", "miliao", "see")
 
@@ -531,30 +563,43 @@ func TestStackGrowth(t *testing.T) {
 }
 
 func TestFuncSize(t *testing.T) {
+	ResetFuncPrologue()
+
 	addr1 := GetFuncAddr(victim)
 	addr2 := GetFuncAddr(victimReplace)
 	addr3 := GetFuncAddr(victimTrampoline)
 
 	elf, err := NewElfInfo()
-	assert.Nil(t, err)
+	hasElf := (err == nil)
 
-	sz1, err1 := elf.GetFuncSize(addr1)
-	assert.Nil(t, err1)
 	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, false)
 	assert.Nil(t, err11)
-	assert.Equal(t, sz1, sz11)
 
-	sz2, err2 := elf.GetFuncSize(addr2)
-	assert.Nil(t, err2)
+	if hasElf {
+		sz1, err1 := elf.GetFuncSize(addr1)
+		assert.Nil(t, err1)
+		assert.Equal(t, sz1, sz11)
+	} else {
+		assert.True(t, sz11 > 0)
+	}
+
 	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, false)
 	assert.Nil(t, err21)
-	assert.Equal(t, sz2, sz21)
 
-	sz3, err3 := elf.GetFuncSize(addr3)
-	assert.Nil(t, err3)
+	if hasElf {
+		sz2, err2 := elf.GetFuncSize(addr2)
+		assert.Nil(t, err2)
+		assert.Equal(t, sz2, sz21)
+	}
+
 	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, false)
 	assert.Nil(t, err31)
-	assert.Equal(t, sz3, sz31)
+
+	if hasElf {
+		sz3, err3 := elf.GetFuncSize(addr3)
+		assert.Nil(t, err3)
+		assert.Equal(t, sz3, sz31)
+	}
 }
 
 func mySprintf(format string, a ...interface{}) string {
@@ -585,10 +630,14 @@ func mySprintf(format string, a ...interface{}) string {
 }
 
 func TestCopyFunc(t *testing.T) {
+	ResetFuncPrologue()
+
 	addr := GetFuncAddr(mySprintf)
 	sz := GetFuncInsSize(mySprintf)
 
-	txt := makeSliceFromPointer(addr, int(sz))
+	tp := makeSliceFromPointer(addr, int(sz))
+	txt := make([]byte, int(sz))
+	copy(txt, tp)
 
 	fs := "some random text, from %d,%S,%T"
 	s1 := fmt.Sprintf(fs, 233, "miliao test sprintf", addr)
@@ -602,4 +651,10 @@ func TestCopyFunc(t *testing.T) {
 	s2 := mySprintf(fs, 233, "miliao test sprintf", addr)
 
 	assert.Equal(t, s1, s2)
+
+	addr2 := GetFuncAddr(fmt.Sprintf)
+	sz2, _ := GetFuncSizeByGuess(GetArchMode(), addr2, true)
+	sz3, _ := GetFuncSizeByGuess(GetArchMode(), addr, true)
+
+	assert.Equal(t, sz2, sz3)
 }
