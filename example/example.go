@@ -6,9 +6,8 @@ import (
 	"gohook"
 )
 
+//go:noinline
 func foo1(v1 int, v2 string) int {
-	defer func() {}() // prevent inline
-
 	fmt.Printf("foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
 }
@@ -57,8 +56,8 @@ func myBuffLen(b *bytes.Buffer) int {
 	return 233 + myBuffLenTramp(b)
 }
 
+//go:noinline
 func myBuffLenTramp(b *bytes.Buffer) int {
-	defer func() {}() // prevent inline
 	fmt.Println("calling myBuffLenTramp1")
 	fmt.Println("calling myBuffLenTramp2")
 	fmt.Println("calling myBuffLenTramp3")

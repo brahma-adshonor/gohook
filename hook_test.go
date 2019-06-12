@@ -14,13 +14,13 @@ func myPrintf(f string, a ...interface{}) (n int, err error) {
 	return myPrintfTramp(f, a...)
 }
 
+//go:noinline
 func myPrintfTramp(f string, a ...interface{}) (n int, err error) {
 	fmt.Printf("hello")
 	fmt.Printf("hello")
 	fmt.Printf("hello")
 	fmt.Printf("hello")
 	fmt.Printf("hello")
-	defer func() {}()
 	return fmt.Printf("hello")
 }
 
@@ -34,8 +34,8 @@ func init() {
 	}
 }
 
+//go:noinline
 func foo1(v1 int, v2 string) int {
-	defer func() {}() // prevent inline
 
 	fmt.Printf("foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
@@ -47,8 +47,8 @@ func foo2(v1 int, v2 string) int {
 	return v1 + 4200
 }
 
+//go:noinline
 func foo3(v1 int, v2 string) int {
-	defer func() {}() // prevent inline
 	fmt.Printf("foo3:%d(%s)\n", v1, v2)
 	return v1 + 10000
 }
