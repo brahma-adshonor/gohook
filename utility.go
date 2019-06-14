@@ -51,6 +51,7 @@ func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 	if elfInfo != nil {
 		sz1, _ = elfInfo.GetFuncSize(from)
 		sz2, _ = elfInfo.GetFuncSize(to)
+		// fmt.Printf("%x:%x,%x:%x\n",from, sz1, to, sz2)
 	}
 
 	var err error
@@ -69,7 +70,7 @@ func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 	}
 
 	if sz1 > sz2+1 { // add trailing int3 to the end
-		return nil, errors.New("sizeof source func > sizeof of target func")
+		return nil, errors.New(fmt.Sprintf("source addr:%x, target addr:%x, sizeof source func(%d) > sizeof of target func(%d)", from, to, sz1, sz2))
 	}
 
 	fix, err2 := copyFuncInstruction(mode, from, to, int(sz1))
