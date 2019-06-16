@@ -44,7 +44,7 @@ func myPrintln(a ...interface{}) (n int, err error) {
 
 func myPrintlnTramp(a ...interface{}) (n int, err error) {
     // a dummy function to make room for a shadow copy of the original function.
-    // it doesn't matter what we do here, just to create an adequate size function.
+    // it doesn't matter what we do here, just to create an addressable function with adequate size.
     myPrintlnTramp(a...)
     myPrintlnTramp(a...)
     myPrintlnTramp(a...)
