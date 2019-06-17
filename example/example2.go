@@ -30,4 +30,5 @@ func main() {
 	gohook.Hook(fmt.Println, myPrintln, myPrintlnTramp)
 	fn := fmt.Println
 	fn("hello world!")
+	fmt.Println("hello world!")
 }
