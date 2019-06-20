@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"unsafe"
+	"bytes"
 )
 
 type HookInfo struct {
@@ -29,6 +30,26 @@ func init() {
 
 func GetArchMode() int {
 	return archMode
+}
+
+func ShowDebugInfo() string {
+	var buff bytes.Buffer
+	for k,v := range g_all {
+		s := fmt.Sprintf("hook function at addr:%x, num of instruction fixed:%d\n", k, len(v.Info.Fix))
+		buff.WriteString(s)
+		for _, f := range v.Info.Fix {
+			s = fmt.Sprintf("==@%08x    new inst:", f.Addr)
+			buff.WriteString(s)
+			for _, c := range f.Code {
+				s = fmt.Sprintf("%02x ", c)
+				buff.WriteString(s)
+			}
+			s = fmt.Sprintf("\n")
+			buff.WriteString(s)
+		}
+	}
+
+	return string(buff.Bytes())
 }
 
 func Hook(target, replacement, trampoline interface{}) error {

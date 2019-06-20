@@ -60,6 +60,9 @@ func main() {
 		fmt.Printf("errors:%s\n", err1.Error())
 	}
 
+	info := gohook.ShowDebugInfo()
+	fmt.Printf("show debug info:\n%s\n", info)
+
 	TestAsm()
 
 	//code := []byte {0x64,0x48,0x8b,0x0c,0x25,0xf8,0xff,0xff,0xff,0x48,0x3b,0x61}
