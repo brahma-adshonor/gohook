@@ -12,6 +12,7 @@ func dummy(v int) string {
 }
 
 type CodeInfo struct {
+	copy           bool
 	Origin         []byte
 	Fix            []CodeFix
 	TrampolineOrig []byte
@@ -39,13 +40,13 @@ func GetFuncInsSize(f interface{}) uint32 {
 	return sz
 }
 
-func CopyFunction(from, to interface{}) ([]byte, error) {
+func CopyFunction(from, to interface{}, info *CodeInfo) ([]byte, error) {
 	s := reflect.ValueOf(from).Pointer()
 	d := reflect.ValueOf(to).Pointer()
-	return doCopyFunction(GetArchMode(), s, d)
+	return doCopyFunction(GetArchMode(), s, d, info)
 }
 
-func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
+func doCopyFunction(mode int, from, to uintptr, info *CodeInfo) ([]byte, error) {
 	sz1 := uint32(0)
 	sz2 := uint32(0)
 	if elfInfo != nil {
@@ -85,9 +86,11 @@ func doCopyFunction(mode int, from, to uintptr) ([]byte, error) {
 	curAddr := to
 	for _, f := range fix {
 		CopyInstruction(curAddr, f.Code)
+		f.Addr = curAddr
 		curAddr += uintptr(len(f.Code))
 	}
 
+	info.Fix = fix
 	return sf, nil
 }
 
@@ -114,12 +117,14 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 
 		fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
 		if err != nil {
-			origin, err2 := doCopyFunction(mode, target, trampoline)
+			info.copy = true
+			origin, err2 := doCopyFunction(mode, target, trampoline, info)
 			if err2 != nil {
 				return nil, errors.New(fmt.Sprintf("both fix and copy failed, fix:%s, copy:%s", err.Error(), err2.Error()))
 			}
 			info.TrampolineOrig = origin
 		} else {
+			info.copy = false
 			for _, v := range fix {
 				origin := makeSliceFromPointer(v.Addr, len(v.Code))
 				f := make([]byte, len(v.Code))
