@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/kmalloc/gohook"
+	"gohook"
 	"os"
 )
 
@@ -31,4 +31,6 @@ func main() {
 	fn := fmt.Println
 	fn("hello world!")
 	fmt.Println("hello world!")
+
+	fmt.Printf("debug info:\n%s\n", gohook.ShowDebugInfo())
 }

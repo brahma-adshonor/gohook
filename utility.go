@@ -1,7 +1,6 @@
 package gohook
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"unsafe"
@@ -12,7 +11,7 @@ func dummy(v int) string {
 }
 
 type CodeInfo struct {
-	copy           bool
+	How            string
 	Origin         []byte
 	Fix            []CodeFix
 	TrampolineOrig []byte
@@ -43,35 +42,51 @@ func GetFuncInsSize(f interface{}) uint32 {
 func CopyFunction(from, to interface{}, info *CodeInfo) ([]byte, error) {
 	s := reflect.ValueOf(from).Pointer()
 	d := reflect.ValueOf(to).Pointer()
-	return doCopyFunction(GetArchMode(), s, d, info)
+
+	mode := GetArchMode()
+	sz1 := getFuncSize(mode, s, true)
+	sz2 := getFuncSize(mode, d, true)
+	return doCopyFunction(mode, s, d, sz1, sz2, info)
 }
 
-func doCopyFunction(mode int, from, to uintptr, info *CodeInfo) ([]byte, error) {
-	sz1 := uint32(0)
-	sz2 := uint32(0)
+func getFuncSize(mode int, addr uintptr, minimal bool) uint32 {
+	sz := uint32(0)
 	if elfInfo != nil {
-		sz1, _ = elfInfo.GetFuncSize(from)
-		sz2, _ = elfInfo.GetFuncSize(to)
-		// fmt.Printf("%x:%x,%x:%x\n",from, sz1, to, sz2)
+		sz, _ = elfInfo.GetFuncSize(addr)
 	}
 
 	var err error
-	if sz1 == 0 {
-		sz1, err = GetFuncSizeByGuess(mode, from, true)
+	if sz == 0 {
+		sz, err = GetFuncSizeByGuess(mode, addr, minimal)
 		if err != nil {
-			return nil, err
+			return 0
 		}
 	}
 
-	if sz2 == 0 {
-		sz2, err = GetFuncSizeByGuess(mode, to, true)
-		if err != nil {
-			return nil, err
-		}
+	return sz
+}
+
+func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeInfo) ([]byte, error) {
+	fix, err := fixFuncInstructionInplace(mode, addr, to, funcSz, to_sz)
+	if err != nil {
+		return nil, err
 	}
 
+	origin := makeSliceFromPointer(addr, int(funcSz))
+	sf := make([]byte, funcSz)
+	copy(sf, origin)
+
+	for _, f := range fix {
+		CopyInstruction(f.Addr, f.Code)
+	}
+
+	info.Fix = fix
+	return sf, nil
+}
+
+func doCopyFunction(mode int, from, to uintptr, sz1, sz2 uint32, info *CodeInfo) ([]byte, error) {
 	if sz1 > sz2+1 { // add trailing int3 to the end
-		return nil, errors.New(fmt.Sprintf("source addr:%x, target addr:%x, sizeof source func(%d) > sizeof of target func(%d)", from, to, sz1, sz2))
+		return nil, fmt.Errorf("source addr:%x, target addr:%x, sizeof source func(%d) > sizeof of target func(%d)", from, to, sz1, sz2)
 	}
 
 	fix, err2 := copyFuncInstruction(mode, from, to, int(sz1))
@@ -117,21 +132,29 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 
 		fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
 		if err != nil {
-			info.copy = true
-			origin, err2 := doCopyFunction(mode, target, trampoline, info)
-			if err2 != nil {
-				return nil, errors.New(fmt.Sprintf("both fix and copy failed, fix:%s, copy:%s", err.Error(), err2.Error()))
+			sz1 := getFuncSize(mode, target, false)
+			sz2 := getFuncSize(mode, trampoline, false)
+			if sz1 <= 0 || sz2 <= 0 {
+				return nil, fmt.Errorf("failed calc func size")
 			}
-			info.TrampolineOrig = origin
+			origin, err1 := doFixFuncInplace(mode, target, trampoline, int(sz1), insLen, info)
+			if err1 != nil {
+				info.How = "copy"
+				origin2, err2 := doCopyFunction(mode, target, trampoline, sz1, sz2, info)
+				if err2 != nil {
+					return nil, fmt.Errorf("both fix/fix2/copy failed, fix:%s, fix2:%s, copy:%s", err.Error(), err1.Error(), err2.Error())
+				}
+				info.TrampolineOrig = origin2
+			} else {
+				info.How = "fix inplace"
+				info.TrampolineOrig = origin
+			}
 		} else {
-			info.copy = false
+			info.How = "fix"
 			for _, v := range fix {
 				origin := makeSliceFromPointer(v.Addr, len(v.Code))
 				f := make([]byte, len(v.Code))
 				copy(f, origin)
-
-				// printInstructionFix(v, f)
-
 				CopyInstruction(v.Addr, v.Code)
 				v.Code = f
 				info.Fix = append(info.Fix, v)

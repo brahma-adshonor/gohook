@@ -33,9 +33,10 @@ func GetArchMode() int {
 }
 
 func ShowDebugInfo() string {
-	var buff bytes.Buffer
+	buff := bytes.NewBuffer(make([]byte, 256))
 	for k,v := range g_all {
-		s := fmt.Sprintf("hook function at addr:%x, is copy:%t, num of instruction fixed:%d\n", k, v.Info.copy, len(v.Info.Fix))
+		s := fmt.Sprintf("hook function at addr:%x, how:%s, num of instruction fixed:%d\n", k, v.Info.How, len(v.Info.Fix))
+
 		buff.WriteString(s)
 		for _, f := range v.Info.Fix {
 			s = fmt.Sprintf("==@%08x    new inst:", f.Addr)
