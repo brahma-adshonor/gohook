@@ -642,7 +642,8 @@ func TestCopyFunc(t *testing.T) {
 	fs := "some random text, from %d,%S,%T"
 	s1 := fmt.Sprintf(fs, 233, "miliao test sprintf", addr)
 
-	origin, err := CopyFunction(fmt.Sprintf, mySprintf)
+	info := &CodeInfo{}
+	origin, err := CopyFunction(fmt.Sprintf, mySprintf, info)
 
 	assert.Nil(t, err)
 	assert.Equal(t, len(txt), len(origin))
