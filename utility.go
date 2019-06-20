@@ -124,6 +124,8 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 	info.Origin = make([]byte, len(ts))
 	copy(info.Origin, ts)
 
+	info.How = "jump"
+
 	if trampoline != uintptr(0) {
 		sz := uint32(0)
 		if elfInfo != nil {
