@@ -98,4 +98,6 @@ func main() {
 
 	hookFunc()
 	hookMethod()
+
+	fmt.Printf("debug info:\n%s\n", gohook.ShowDebugInfo())
 }

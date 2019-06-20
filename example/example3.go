@@ -99,4 +99,6 @@ func main() {
 
 	fmt.Printf("after hook base, id:%d\n", a.Id())
 	fmt.Printf("after hook base, id from interface:%d\n", get_id_from(a))
+
+	fmt.Printf("debug info:\n%s\n", gohook.ShowDebugInfo())
 }
