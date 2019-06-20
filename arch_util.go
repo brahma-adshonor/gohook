@@ -466,7 +466,7 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 		}
 
 		newsz := sz
-		if ft == FT_OVERFLOW && len(nc) == 2 {
+		if ft == FT_OVERFLOW && sz == 2 {
 			var err error
 			off := calcOffset(2, addr, newAddr, to, move_sz, int32(int8(nc[1])))
 			nc, err = translateJump(off, nc)

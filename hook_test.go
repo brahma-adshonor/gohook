@@ -660,14 +660,110 @@ func TestCopyFunc(t *testing.T) {
 	assert.Equal(t, sz2, sz3)
 }
 
-func TestFixInplace(t *testing.T) {
-	fc := []byte {
-		0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff,
-		0x48, 0x3b, 0x61, 0x10,
-		0x0f, 0x86, 0xb1, 0x01, 0x00, 0x00,
-		0x48, 0x83, 0xec, 0x58,
-		0x48, 0x89, 0x6c, 0x24, 0x50,
-		0x48, 0x8d, 0x6c, 0x24, 0x50,
-		0x90,
+func inplaceFix(a, b, c int, e, f, g string) int {
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+	fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+
+	for {
+		if (a % 2) != 0 {
+			fmt.Printf("calling victim()(%d,%s,%s,%x):%dth\n", a, e, f, c, 0x23)
+		} else {
+			a++
+		}
+
+		if a+b > 100 {
+			break
+		}
+
+		buff := bytes.NewBufferString("something weird")
+		fmt.Printf("len:%d\n", buff.Len())
 	}
+
+	return 1
+}
+
+func TestFixInplace(t *testing.T) {
+	d1 := byte(0xb2) // byte(-78)
+	d2 := byte(0xa8) // byte(-88)
+	prefix := []byte {
+		0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, // 9
+		0x48, 0x3b, 0x61, 0x10, // 4
+		0x0f, 0x86, 0xb1, 0x01, 0x00, 0x00, // 6
+		0x48, 0x83, 0xec, 0x58, // 4
+		0x48, 0x89, 0x6c, 0x24, 0x50, // 5
+		0x48, 0x8d, 0x6c, 0x24, 0x50, // 5
+		0x90, // 1
+		0x48, 0x8b, 0x05, 0xc7, 0x5f, 0x16, 0x00, // 7
+		0x48, 0x8d, 0x0d, 0x50, 0x85, 0x07, 0x00, // 7
+		0x48, 0x89, 0x0c, 0x24, // 4
+		0x48, 0x89, 0x44, 0x24, 0x08, // 5
+		0x48, 0x8d, 0x05, 0x9f, 0xe0, 0x04, 0x00, // 7
+		0x48, 0x89, 0x44, 0x24, 0x10, // 5
+		0x48, 0xc7, 0x44, 0x24, 0x18, 0x07, 0x00, 0x00, 0x00, // 9
+	}
+		// totoal 78 bytes
+
+		// short jump
+	jc1 := []byte {0xeb, d1} // 2
+
+	mid := []byte {
+		0x0f, 0x57, 0xc0, // 3
+		0x0f, 0x11, 0x44, 0x24, 0x28, // 5
+	}
+
+	jc2 := []byte {
+		// condition jump
+		0x77, d2, // 2
+	}
+
+	posfix := []byte {
+		// trailing
+		0xcc, 0xcc, 0xcc, 0xcc,
+		0xcc, 0xcc, 0xcc, 0xcc,
+		0xcc, 0xcc, 0xcc, 0xcc,
+		0xcc, 0xcc, 0xcc, 0xcc,
+	}
+
+	fc := append(append(append(append(prefix, jc1...), mid...), jc2...), posfix...)
+
+	info := &CodeInfo{}
+	addr := GetFuncAddr(inplaceFix)
+	size := len(fc)
+	mvSize := 0x08
+	toAddr := addr + uintptr(0x1000ffff)
+
+	curAddr1 := addr + uintptr(78)
+	curAddr2 := addr + uintptr(78) + uintptr(10)
+
+	CopyInstruction(addr, fc)
+	_, err := doFixFuncInplace(64, addr, toAddr, int(size), mvSize, info)
+	assert.Nil(t, err)
+	assert.Equal(t, 19, len(info.Fix))
+
+	off1 := calcOffset(2, addr, curAddr1, toAddr, mvSize, int32(int8(d1)))
+	fix1, _ := translateJump(off1, jc1)
+	fmt.Printf("off1:%x\n", off1)
+
+	// assert.Equal(t, []byte{0xe9, }, fix1)
+
+	off2 := calcOffset(2, addr, curAddr2, toAddr, mvSize, int32(int8(d2)))
+	fix2, _ := translateJump(off2, jc2)
+
+	fc2 := append(append(append(append(prefix, fix1...), mid...), fix2...), posfix...)
+
+	assert.Equal(t, len(fc) + 3 + 4, len(fc2))
+
+	fc3 := fc2[:len(fc2) - 7]
+	fs := makeSliceFromPointer(addr, len(fc))
+
+	assert.Equal(t, len(fc3), len(fs))
+	assert.Equal(t, fc3, fs)
 }
