@@ -33,7 +33,7 @@ func GetArchMode() int {
 }
 
 func ShowDebugInfo() string {
-	buff := bytes.NewBuffer(make([]byte, 256))
+	buff := bytes.NewBuffer(make([]byte, 0, 256))
 	for k,v := range g_all {
 		s := fmt.Sprintf("hook function at addr:%x, how:%s, num of instruction fixed:%d\n", k, v.Info.How, len(v.Info.Fix))
 
