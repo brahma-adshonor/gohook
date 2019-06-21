@@ -749,17 +749,17 @@ func TestFixInplace(t *testing.T) {
 	raw := make([]byte, len(fc))
 	copy(raw, fs)
 
-	origin, err := doFixFuncInplace(64, addr, toAddr, int(size), mvSize, info)
+	err := doFixFuncInplace(64, addr, toAddr, int(size), mvSize, info)
 
 	assert.Nil(t, err)
-	assert.Equal(t, raw, origin)
+	assert.True(t, len(raw) >= len(info.Origin))
+	raw = raw[:len(info.Origin)]
+	assert.Equal(t, raw, info.Origin)
 	assert.Equal(t, 19, len(info.Fix))
 
 	off1 := calcOffset(2, addr, curAddr1, toAddr, mvSize, int32(int8(d1)))
 	fix1, _ := translateJump(off1, jc1)
 	fmt.Printf("off1:%x\n", off1)
-
-	// assert.Equal(t, []byte{0xe9, }, fix1)
 
 	off2 := calcOffset(2, addr, curAddr2, toAddr, mvSize, int32(int8(d2)))
 	fix2, _ := translateJump(off2, jc2)
