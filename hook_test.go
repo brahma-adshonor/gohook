@@ -744,15 +744,22 @@ func TestFixInplace(t *testing.T) {
 	curAddr2 := addr + uintptr(78) + uintptr(10)
 
 	CopyInstruction(addr, fc)
-	_, err := doFixFuncInplace(64, addr, toAddr, int(size), mvSize, info)
+
+	fs := makeSliceFromPointer(addr, len(fc))
+	raw := make([]byte, len(fc))
+	copy(raw, fs)
+
+	err := doFixFuncInplace(64, addr, toAddr, int(size), mvSize, info)
+
 	assert.Nil(t, err)
+	assert.True(t, len(raw) >= len(info.Origin))
+	raw = raw[:len(info.Origin)]
+	assert.Equal(t, raw, info.Origin)
 	assert.Equal(t, 19, len(info.Fix))
 
 	off1 := calcOffset(2, addr, curAddr1, toAddr, mvSize, int32(int8(d1)))
 	fix1, _ := translateJump(off1, jc1)
 	fmt.Printf("off1:%x\n", off1)
-
-	// assert.Equal(t, []byte{0xe9, }, fix1)
 
 	off2 := calcOffset(2, addr, curAddr2, toAddr, mvSize, int32(int8(d2)))
 	fix2, _ := translateJump(off2, jc2)
@@ -762,7 +769,6 @@ func TestFixInplace(t *testing.T) {
 	assert.Equal(t, len(fc) + 3 + 4, len(fc2))
 
 	fc3 := fc2[:len(fc2) - 7]
-	fs := makeSliceFromPointer(addr, len(fc))
 
 	assert.Equal(t, len(fc3), len(fs))
 	assert.Equal(t, fc3, fs)

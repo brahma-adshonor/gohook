@@ -93,8 +93,11 @@ func doUnHook(target uintptr) error {
 	}
 
 	CopyInstruction(target, info.Info.Origin)
-	for _, v := range info.Info.Fix {
-		CopyInstruction(v.Addr, v.Code)
+
+	if info.Info.How == "fix" {
+		for _, v := range info.Info.Fix {
+			CopyInstruction(v.Addr, v.Code)
+		}
 	}
 
 	if info.Trampoline.IsValid() {
