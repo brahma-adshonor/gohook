@@ -404,6 +404,12 @@ func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
 }
 
 // sz size of source function
+//  WARNING: copy function won't work in copystack(since go 1.3).
+// runtime will copy stack to new area and fix those weird stuff, this will crash trampoline function.
+// since copy function make trampoline a completely different function, with completely different stack layout which is
+// not known to runtime.
+// solution to this is, we should just copy those non-call instructions to trampoline. in this way we don't mess up with runtime.
+// TODO/FIXME
 func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) {
 	curSz := 0
 	curAddr := from
