@@ -157,6 +157,9 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 				}
 				fix_trampoline = false
 				info.TrampolineOrig = origin
+			} else {
+				insLen = GetInsLenGreaterThan(mode, info.Origin, len(jumpcode))
+				ts = makeSliceFromPointer(target, insLen)
 			}
 		} else {
 			info.How = "fix"

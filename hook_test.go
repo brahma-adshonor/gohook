@@ -773,3 +773,74 @@ func TestFixInplace(t *testing.T) {
 	assert.Equal(t, len(fc3), len(fs))
 	assert.Equal(t, fc3, fs)
 }
+
+func foo_for_inplace_fix(id string) string {
+	for {
+			fmt.Printf("calling victim")
+			if id == "miliao" {
+				return "done"
+			}
+		}
+
+	fmt.Printf("len:%d\n", len(id))
+	return id + "xxx"
+}
+
+func foo_for_inplace_fix_delimiter(id string) string {
+	for {
+			fmt.Printf("calling victim trampoline")
+			if id == "miliao" {
+				return "done"
+			}
+			break
+		}
+
+	ret := "miliao"
+	ret += foo_for_inplace_fix("test")
+	ret += foo_for_inplace_fix("test")
+	ret += foo_for_inplace_fix("test")
+	ret += foo_for_inplace_fix("test")
+
+	fmt.Printf("len1:%d\n", len(id))
+	fmt.Printf("len2:%d\n", len(ret))
+
+	return id + ret
+}
+
+func foo_for_inplace_fix_replace(id string) string {
+	for {
+			fmt.Printf("calling victim trampoline")
+			if id == "miliao" {
+				return "done"
+			}
+		}
+
+	fmt.Printf("len:%d\n", len(id))
+	return id + "xxx2"
+}
+
+func foo_for_inplace_fix_trampoline(id string) string {
+	for {
+			fmt.Printf("calling victim trampoline")
+			if id == "miliao" {
+				return "done"
+			}
+		}
+
+	fmt.Printf("len:%d\n", len(id))
+	return id + "xxx2"
+}
+
+func TestInplaceFixAtMoveArea(t *testing.T) {
+	code := []byte {
+		0x48, 0x8b, 0x48, 0x08, // mov 0x8(%rax),%rcx
+		0x74, 0x4, // jbe
+		0x48, 0x8b, 0x48, 0x18, // sub 0x18(%rax), %rcx
+		0x48, 0x89, 0x4c, 0x24, 0x10, // %rcx, 0x10(%rsp)
+		0xcc, 0xcc,
+	}
+
+	target := GetFuncAddr(foo_for_inplace_fix)
+
+	CopyInstruction(target, code)
+}

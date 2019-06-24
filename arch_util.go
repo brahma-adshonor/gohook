@@ -11,6 +11,7 @@ import (
 type CodeFix struct {
 	Code []byte
 	Addr uintptr
+	Delta int
 }
 
 var (
@@ -444,6 +445,17 @@ func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) 
 	return fix, nil
 }
 
+func MoveShortJumpTo(mode int, from, to uintptr, ssz, dsz int) ([]CodeFix, error) {
+	/*
+	curSz := 0
+	toAddr := to
+	curAddr := from
+	fix := make([]CodeFix, 0, 64)
+	*/
+
+	return nil, nil
+}
+
 func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz int) ([]CodeFix, error) {
 	curSz := 0
 	curAddr := addr
@@ -471,8 +483,13 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 			break
 		}
 
+		delta := 0
 		newsz := sz
-		if ft == FT_OVERFLOW && sz == 2 {
+		if ft == FT_OVERFLOW {
+			if sz != 2 {
+				return nil, fmt.Errorf("inst overflow with size != 2")
+			}
+
 			var err error
 			off := calcOffset(2, addr, newAddr, to, move_sz, int32(int8(nc[1])))
 			nc, err = translateJump(off, nc)
@@ -480,10 +497,11 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 				return nil, err
 			}
 
+			delta = 2
 			newsz = len(nc)
 		}
 
-		fix = append(fix, CodeFix{Code: nc, Addr: newAddr})
+		fix = append(fix, CodeFix{Code: nc, Addr: newAddr, Delta:delta})
 
 		curSz += sz
 		newAddr += uintptr(newsz)
