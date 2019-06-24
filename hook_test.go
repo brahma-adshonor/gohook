@@ -860,11 +860,12 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 		0xc3, // retq
 		0xcc, 0xcc,
 		*/
-		0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90,
 		0x74, 0x04,
-		0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90, 0x90, 0x90, 0x90,
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0xc3,
+		0x74, 0xf0, // jbe -16
 		0xcc, 0xcc, 0xcc, 0xcc,
 		0xcc, 0xcc, 0xcc, 0xcc,
 	}
@@ -885,14 +886,21 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 	msg1 := foo_for_inplace_fix("txt")
 	assert.Equal(t, "txtxxx2", msg1)
 
-	err2 := UnHook(foo_for_inplace_fix)
-	assert.Nil(t, err2)
+	ret := []byte{
+		0x90,0x90,
+		0x0f,0x84,0x74,0xfc, 0xff,0xff,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0xc3,
+		0x0f, 0x84, 0x80, 0x03, 0x00, 0x00,
+		0xcc,
+	}
 
-	msg2 := foo_for_inplace_fix_trampoline("txt")
-	assert.Equal(t, "txtxxx3", msg2)
+	fc1 := makeSliceFromPointer(target, len(ret))
+	fc2 := makeSliceFromPointer(trampoline, len(ret))
 
-	msg3 := foo_for_inplace_fix_replace("txt2")
-	assert.Equal(t, "txt2xxx2", msg3)
+	assert.Equal(t, ret[:8], fc2[:8])
+	assert.Equal(t, ret[5:], fc1[5:])
 
 	code2 := []byte {
 		0x90, 0x90, 0x90, 0x90,
@@ -901,6 +909,15 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0xc3, 0xcc, 0x90,
 	}
+
+	err2 := UnHook(foo_for_inplace_fix)
+	assert.Nil(t, err2)
+
+	msg2 := foo_for_inplace_fix_trampoline("txt")
+	assert.Equal(t, "txtxxx3", msg2)
+
+	msg3 := foo_for_inplace_fix_replace("txt2")
+	assert.Equal(t, "txt2xxx2", msg3)
 
 	CopyInstruction(target, code2)
 

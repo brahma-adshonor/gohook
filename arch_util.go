@@ -497,8 +497,12 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 				return nil, err
 			}
 
-			delta = 2
 			newsz = len(nc)
+			delta = len(nc) - 2
+
+			if newAddr < addr + uintptr(move_sz) {
+				move_sz += delta
+			}
 		}
 
 		fix = append(fix, CodeFix{Code: nc, Addr: newAddr, Delta:delta})
@@ -509,7 +513,10 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	}
 
 	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: newAddr})
-	if int(newAddr - addr) >= funcSz {
+
+	newSz := int(newAddr - addr)
+
+	if newSz > funcSz {
 		return fix, fmt.Errorf("func size exceed during inplace fix")
 	}
 
