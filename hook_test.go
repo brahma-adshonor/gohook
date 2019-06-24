@@ -836,7 +836,7 @@ func foo_for_inplace_fix_replace(id string) string {
 func foo_for_inplace_fix_trampoline(id string) string {
 	c := 0
 	for {
-			fmt.Printf("calling victim trampoline")
+			fmt.Printf("calling victim trampoline\n")
 			if id == "miliao" {
 				return "done"
 			}
@@ -899,8 +899,11 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 		0x74, 0x04,
 		0x90, 0x90, 0x90, 0x90,
 		0x90, 0x90, 0x90, 0x90, 0x90,
-		0xc3,
+		0xc3, 0xcc, 0x90,
 	}
 
-	assert.Equal(t, len(code2), len(code2))
+	CopyInstruction(target, code2)
+
+	fsz, _ := GetFuncSizeByGuess(GetArchMode(), target, false)
+	assert.Equal(t, len(code2) - 1, int(fsz))
 }
