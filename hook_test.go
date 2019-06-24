@@ -775,10 +775,16 @@ func TestFixInplace(t *testing.T) {
 }
 
 func foo_for_inplace_fix(id string) string {
+	c := 0
 	for {
-			fmt.Printf("calling victim")
+			fmt.Printf("calling victim\n")
 			if id == "miliao" {
 				return "done"
+			}
+
+			c++
+			if c > len(id) {
+				break
 			}
 		}
 
@@ -808,39 +814,82 @@ func foo_for_inplace_fix_delimiter(id string) string {
 }
 
 func foo_for_inplace_fix_replace(id string) string {
+	c := 0
 	for {
-			fmt.Printf("calling victim trampoline")
+			fmt.Printf("calling victim trampoline\n")
 			if id == "miliao" {
 				return "done"
+			}
+			c++
+			if c > len(id) {
+				break
 			}
 		}
 
 	fmt.Printf("len:%d\n", len(id))
+	foo_for_inplace_fix_trampoline("origin")
+
 	return id + "xxx2"
 }
 
 func foo_for_inplace_fix_trampoline(id string) string {
+	c := 0
 	for {
 			fmt.Printf("calling victim trampoline")
 			if id == "miliao" {
 				return "done"
 			}
+			c++
+			if c > len(id) {
+				break
+			}
 		}
 
 	fmt.Printf("len:%d\n", len(id))
-	return id + "xxx2"
+	return id + "xxx3"
 }
 
 func TestInplaceFixAtMoveArea(t *testing.T) {
 	code := []byte {
+		/*
 		0x48, 0x8b, 0x48, 0x08, // mov 0x8(%rax),%rcx
 		0x74, 0x4, // jbe
 		0x48, 0x8b, 0x48, 0x18, // sub 0x18(%rax), %rcx
 		0x48, 0x89, 0x4c, 0x24, 0x10, // %rcx, 0x10(%rsp)
+		0xc3, // retq
 		0xcc, 0xcc,
+		*/
+		0x90, 0x90, 0x90, 0x90,
+		0x74, 0x04,
+		0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0xc3,
+		0xcc, 0xcc, 0xcc, 0xcc,
+		0xcc, 0xcc, 0xcc, 0xcc,
 	}
 
 	target := GetFuncAddr(foo_for_inplace_fix)
+	// replace := GetFuncAddr(foo_for_inplace_fix_replace)
+	trampoline := GetFuncAddr(foo_for_inplace_fix_trampoline)
+
+	assert.True(t, isByteOverflow((int32)(trampoline-target)))
 
 	CopyInstruction(target, code)
+
+	err1 := Hook(foo_for_inplace_fix, foo_for_inplace_fix_replace, foo_for_inplace_fix_trampoline)
+	assert.Nil(t, err1)
+
+	fmt.Printf("debug info:%s\n", ShowDebugInfo())
+
+	msg1 := foo_for_inplace_fix("txt")
+	assert.Equal(t, "txtxxx2", msg1)
+
+	err2 := UnHook(foo_for_inplace_fix)
+	assert.Nil(t, err2)
+
+	msg2 := foo_for_inplace_fix_trampoline("txt")
+	assert.Equal(t, "txtxxx3", msg2)
+
+	msg3 := foo_for_inplace_fix_replace("txt2")
+	assert.Equal(t, "txt2xxx2", msg3)
 }
