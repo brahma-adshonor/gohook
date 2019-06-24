@@ -11,6 +11,7 @@ import (
 type CodeFix struct {
 	Code []byte
 	Addr uintptr
+	Delta int
 }
 
 var (
@@ -404,6 +405,12 @@ func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
 }
 
 // sz size of source function
+// WARNING: copy function won't work in copystack(since go 1.3).
+// runtime will copy stack to new area and fix those weird stuff(pointer/rbp etc), this will crash trampoline function.
+// since copying function makes trampoline a completely different function, with completely different stack layout which is
+// not known to runtime.
+// solution to this is, we should just copy those non-call instructions to trampoline. in this way we don't mess up with runtime.
+// TODO/FIXME
 func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) {
 	curSz := 0
 	curAddr := from
@@ -438,6 +445,17 @@ func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) 
 	return fix, nil
 }
 
+func MoveShortJumpTo(mode int, from, to uintptr, ssz, dsz int) ([]CodeFix, error) {
+	/*
+	curSz := 0
+	toAddr := to
+	curAddr := from
+	fix := make([]CodeFix, 0, 64)
+	*/
+
+	return nil, nil
+}
+
 func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz int) ([]CodeFix, error) {
 	curSz := 0
 	curAddr := addr
@@ -453,7 +471,7 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	}
 
 	for {
-		if curSz >= funcSz && int(newAddr - addr) >= funcSz {
+		if curSz >= funcSz /*&& int(newAddr - addr) >= funcSz*/ {
 			break
 		}
 
@@ -465,8 +483,13 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 			break
 		}
 
+		delta := 0
 		newsz := sz
-		if ft == FT_OVERFLOW && sz == 2 {
+		if ft == FT_OVERFLOW {
+			if sz != 2 {
+				return nil, fmt.Errorf("inst overflow with size != 2")
+			}
+
 			var err error
 			off := calcOffset(2, addr, newAddr, to, move_sz, int32(int8(nc[1])))
 			nc, err = translateJump(off, nc)
@@ -475,9 +498,14 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 			}
 
 			newsz = len(nc)
+			delta = len(nc) - 2
+
+			if newAddr < addr + uintptr(move_sz) {
+				move_sz += delta
+			}
 		}
 
-		fix = append(fix, CodeFix{Code: nc, Addr: newAddr})
+		fix = append(fix, CodeFix{Code: nc, Addr: newAddr, Delta:delta})
 
 		curSz += sz
 		newAddr += uintptr(newsz)
@@ -485,6 +513,13 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	}
 
 	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: newAddr})
+
+	newSz := int(newAddr - addr)
+
+	if newSz > funcSz {
+		return fix, fmt.Errorf("func size exceed during inplace fix")
+	}
+
 	return fix, nil
 }
 

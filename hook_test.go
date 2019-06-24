@@ -572,7 +572,7 @@ func TestFuncSize(t *testing.T) {
 	elf, err := NewElfInfo()
 	hasElf := (err == nil)
 
-	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, false)
+	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, true)
 	assert.Nil(t, err11)
 
 	if hasElf {
@@ -583,7 +583,7 @@ func TestFuncSize(t *testing.T) {
 		assert.True(t, sz11 > 0)
 	}
 
-	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, false)
+	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, true)
 	assert.Nil(t, err21)
 
 	if hasElf {
@@ -592,12 +592,13 @@ func TestFuncSize(t *testing.T) {
 		assert.Equal(t, sz2, sz21)
 	}
 
-	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, false)
+	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, true)
 	assert.Nil(t, err31)
 
 	if hasElf {
 		sz3, err3 := elf.GetFuncSize(addr3)
 		assert.Nil(t, err3)
+
 		assert.Equal(t, sz3, sz31)
 	}
 }
@@ -772,4 +773,154 @@ func TestFixInplace(t *testing.T) {
 
 	assert.Equal(t, len(fc3), len(fs))
 	assert.Equal(t, fc3, fs)
+}
+
+func foo_for_inplace_fix(id string) string {
+	c := 0
+	for {
+			fmt.Printf("calling victim\n")
+			if id == "miliao" {
+				return "done"
+			}
+
+			c++
+			if c > len(id) {
+				break
+			}
+		}
+
+	fmt.Printf("len:%d\n", len(id))
+	return id + "xxx"
+}
+
+func foo_for_inplace_fix_delimiter(id string) string {
+	for {
+			fmt.Printf("calling victim trampoline")
+			if id == "miliao" {
+				return "done"
+			}
+			break
+		}
+
+	ret := "miliao"
+	ret += foo_for_inplace_fix("test")
+	ret += foo_for_inplace_fix("test")
+	ret += foo_for_inplace_fix("test")
+	ret += foo_for_inplace_fix("test")
+
+	fmt.Printf("len1:%d\n", len(id))
+	fmt.Printf("len2:%d\n", len(ret))
+
+	return id + ret
+}
+
+func foo_for_inplace_fix_replace(id string) string {
+	c := 0
+	for {
+			fmt.Printf("calling victim trampoline\n")
+			if id == "miliao" {
+				return "done"
+			}
+			c++
+			if c > len(id) {
+				break
+			}
+		}
+
+	fmt.Printf("len:%d\n", len(id))
+	foo_for_inplace_fix_trampoline("origin")
+
+	return id + "xxx2"
+}
+
+func foo_for_inplace_fix_trampoline(id string) string {
+	c := 0
+	for {
+			fmt.Printf("calling victim trampoline\n")
+			if id == "miliao" {
+				return "done"
+			}
+			c++
+			if c > len(id) {
+				break
+			}
+		}
+
+	fmt.Printf("len:%d\n", len(id))
+	return id + "xxx3"
+}
+
+func TestInplaceFixAtMoveArea(t *testing.T) {
+	code := []byte {
+		/*
+		0x48, 0x8b, 0x48, 0x08, // mov 0x8(%rax),%rcx
+		0x74, 0x4, // jbe
+		0x48, 0x8b, 0x48, 0x18, // sub 0x18(%rax), %rcx
+		0x48, 0x89, 0x4c, 0x24, 0x10, // %rcx, 0x10(%rsp)
+		0xc3, // retq
+		0xcc, 0xcc,
+		*/
+		0x90, 0x90,
+		0x74, 0x04,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0xc3,
+		0x74, 0xf0, // jbe -16
+		0xcc, 0xcc, 0xcc, 0xcc,
+		0xcc, 0xcc, 0xcc, 0xcc,
+	}
+
+	target := GetFuncAddr(foo_for_inplace_fix)
+	// replace := GetFuncAddr(foo_for_inplace_fix_replace)
+	trampoline := GetFuncAddr(foo_for_inplace_fix_trampoline)
+
+	assert.True(t, isByteOverflow((int32)(trampoline-target)))
+
+	CopyInstruction(target, code)
+
+	err1 := Hook(foo_for_inplace_fix, foo_for_inplace_fix_replace, foo_for_inplace_fix_trampoline)
+	assert.Nil(t, err1)
+
+	fmt.Printf("debug info:%s\n", ShowDebugInfo())
+
+	msg1 := foo_for_inplace_fix("txt")
+	assert.Equal(t, "txtxxx2", msg1)
+
+	ret := []byte{
+		0x90,0x90,
+		0x0f,0x84,0x74,0xfc, 0xff,0xff,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0xc3,
+		0x0f, 0x84, 0x80, 0x03, 0x00, 0x00,
+		0xcc,
+	}
+
+	fc1 := makeSliceFromPointer(target, len(ret))
+	fc2 := makeSliceFromPointer(trampoline, len(ret))
+
+	assert.Equal(t, ret[:8], fc2[:8])
+	assert.Equal(t, ret[5:], fc1[5:])
+
+	code2 := []byte {
+		0x90, 0x90, 0x90, 0x90,
+		0x74, 0x04,
+		0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0xc3, 0xcc, 0x90,
+	}
+
+	err2 := UnHook(foo_for_inplace_fix)
+	assert.Nil(t, err2)
+
+	msg2 := foo_for_inplace_fix_trampoline("txt")
+	assert.Equal(t, "txtxxx3", msg2)
+
+	msg3 := foo_for_inplace_fix_replace("txt2")
+	assert.Equal(t, "txt2xxx2", msg3)
+
+	CopyInstruction(target, code2)
+
+	fsz, _ := GetFuncSizeByGuess(GetArchMode(), target, false)
+	assert.Equal(t, len(code2) - 1, int(fsz))
 }
