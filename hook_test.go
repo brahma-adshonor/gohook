@@ -572,7 +572,7 @@ func TestFuncSize(t *testing.T) {
 	elf, err := NewElfInfo()
 	hasElf := (err == nil)
 
-	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, false)
+	sz11, err11 := GetFuncSizeByGuess(GetArchMode(), addr1, true)
 	assert.Nil(t, err11)
 
 	if hasElf {
@@ -583,7 +583,7 @@ func TestFuncSize(t *testing.T) {
 		assert.True(t, sz11 > 0)
 	}
 
-	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, false)
+	sz21, err21 := GetFuncSizeByGuess(GetArchMode(), addr2, true)
 	assert.Nil(t, err21)
 
 	if hasElf {
@@ -592,12 +592,13 @@ func TestFuncSize(t *testing.T) {
 		assert.Equal(t, sz2, sz21)
 	}
 
-	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, false)
+	sz31, err31 := GetFuncSizeByGuess(GetArchMode(), addr3, true)
 	assert.Nil(t, err31)
 
 	if hasElf {
 		sz3, err3 := elf.GetFuncSize(addr3)
 		assert.Nil(t, err3)
+
 		assert.Equal(t, sz3, sz31)
 	}
 }
@@ -892,4 +893,14 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 
 	msg3 := foo_for_inplace_fix_replace("txt2")
 	assert.Equal(t, "txt2xxx2", msg3)
+
+	code2 := []byte {
+		0x90, 0x90, 0x90, 0x90,
+		0x74, 0x04,
+		0x90, 0x90, 0x90, 0x90,
+		0x90, 0x90, 0x90, 0x90, 0x90,
+		0xc3,
+	}
+
+	assert.Equal(t, len(code2), len(code2))
 }
