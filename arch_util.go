@@ -18,6 +18,8 @@ var (
 	minJmpCodeSize = 0
 	elfInfo, _     = NewElfInfo()
 
+	errInplaceFixSizeNotEnough = fmt.Errorf("func size exceed during inplace fix")
+
 	funcPrologue32 = defaultFuncPrologue32
 	funcPrologue64 = defaultFuncPrologue64
 
@@ -517,7 +519,7 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	newSz := int(newAddr - addr)
 
 	if newSz > funcSz {
-		return fix, fmt.Errorf("func size exceed during inplace fix")
+		return fix, errInplaceFixSizeNotEnough
 	}
 
 	return fix, nil

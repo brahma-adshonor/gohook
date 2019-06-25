@@ -69,6 +69,9 @@ func getFuncSize(mode int, addr uintptr, minimal bool) uint32 {
 func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeInfo) error {
 	fix, err := fixFuncInstructionInplace(mode, addr, to, funcSz, to_sz)
 	if err != nil {
+		if err == errInplaceFixSizeNotEnough {
+			// TODO
+		}
 		return err
 	}
 
