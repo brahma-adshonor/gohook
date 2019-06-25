@@ -644,7 +644,7 @@ func TestCopyFunc(t *testing.T) {
 	s1 := fmt.Sprintf(fs, 233, "miliao test sprintf", addr)
 
 	info := &CodeInfo{}
-	origin, err := CopyFunction(fmt.Sprintf, mySprintf, info)
+	origin, err := CopyFunction(true, fmt.Sprintf, mySprintf, info)
 
 	assert.Nil(t, err)
 	assert.Equal(t, len(txt), len(origin))
@@ -694,14 +694,14 @@ func inplaceFix(a, b, c int, e, f, g string) int {
 func TestFixInplace(t *testing.T) {
 	d1 := byte(0xb2) // byte(-78)
 	d2 := byte(0xa8) // byte(-88)
-	prefix := []byte {
+	prefix := []byte{
 		0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, // 9
 		0x48, 0x3b, 0x61, 0x10, // 4
 		0x0f, 0x86, 0xb1, 0x01, 0x00, 0x00, // 6
 		0x48, 0x83, 0xec, 0x58, // 4
 		0x48, 0x89, 0x6c, 0x24, 0x50, // 5
 		0x48, 0x8d, 0x6c, 0x24, 0x50, // 5
-		0x90, // 1
+		0x90,                                     // 1
 		0x48, 0x8b, 0x05, 0xc7, 0x5f, 0x16, 0x00, // 7
 		0x48, 0x8d, 0x0d, 0x50, 0x85, 0x07, 0x00, // 7
 		0x48, 0x89, 0x0c, 0x24, // 4
@@ -710,22 +710,22 @@ func TestFixInplace(t *testing.T) {
 		0x48, 0x89, 0x44, 0x24, 0x10, // 5
 		0x48, 0xc7, 0x44, 0x24, 0x18, 0x07, 0x00, 0x00, 0x00, // 9
 	}
-		// totoal 78 bytes
+	// totoal 78 bytes
 
-		// short jump
-	jc1 := []byte {0xeb, d1} // 2
+	// short jump
+	jc1 := []byte{0xeb, d1} // 2
 
-	mid := []byte {
+	mid := []byte{
 		0x0f, 0x57, 0xc0, // 3
 		0x0f, 0x11, 0x44, 0x24, 0x28, // 5
 	}
 
-	jc2 := []byte {
+	jc2 := []byte{
 		// condition jump
 		0x77, d2, // 2
 	}
 
-	posfix := []byte {
+	posfix := []byte{
 		// trailing
 		0xcc, 0xcc, 0xcc, 0xcc,
 		0xcc, 0xcc, 0xcc, 0xcc,
@@ -767,9 +767,9 @@ func TestFixInplace(t *testing.T) {
 
 	fc2 := append(append(append(append(prefix, fix1...), mid...), fix2...), posfix...)
 
-	assert.Equal(t, len(fc) + 3 + 4, len(fc2))
+	assert.Equal(t, len(fc)+3+4, len(fc2))
 
-	fc3 := fc2[:len(fc2) - 7]
+	fc3 := fc2[:len(fc2)-7]
 
 	assert.Equal(t, len(fc3), len(fs))
 	assert.Equal(t, fc3, fs)
@@ -778,16 +778,16 @@ func TestFixInplace(t *testing.T) {
 func foo_for_inplace_fix(id string) string {
 	c := 0
 	for {
-			fmt.Printf("calling victim\n")
-			if id == "miliao" {
-				return "done"
-			}
-
-			c++
-			if c > len(id) {
-				break
-			}
+		fmt.Printf("calling victim\n")
+		if id == "miliao" {
+			return "done"
 		}
+
+		c++
+		if c > len(id) {
+			break
+		}
+	}
 
 	fmt.Printf("len:%d\n", len(id))
 	return id + "xxx"
@@ -795,12 +795,12 @@ func foo_for_inplace_fix(id string) string {
 
 func foo_for_inplace_fix_delimiter(id string) string {
 	for {
-			fmt.Printf("calling victim trampoline")
-			if id == "miliao" {
-				return "done"
-			}
-			break
+		fmt.Printf("calling victim trampoline")
+		if id == "miliao" {
+			return "done"
 		}
+		break
+	}
 
 	ret := "miliao"
 	ret += foo_for_inplace_fix("test")
@@ -817,15 +817,15 @@ func foo_for_inplace_fix_delimiter(id string) string {
 func foo_for_inplace_fix_replace(id string) string {
 	c := 0
 	for {
-			fmt.Printf("calling victim trampoline\n")
-			if id == "miliao" {
-				return "done"
-			}
-			c++
-			if c > len(id) {
-				break
-			}
+		fmt.Printf("calling victim trampoline\n")
+		if id == "miliao" {
+			return "done"
 		}
+		c++
+		if c > len(id) {
+			break
+		}
+	}
 
 	fmt.Printf("len:%d\n", len(id))
 	foo_for_inplace_fix_trampoline("origin")
@@ -836,29 +836,29 @@ func foo_for_inplace_fix_replace(id string) string {
 func foo_for_inplace_fix_trampoline(id string) string {
 	c := 0
 	for {
-			fmt.Printf("calling victim trampoline\n")
-			if id == "miliao" {
-				return "done"
-			}
-			c++
-			if c > len(id) {
-				break
-			}
+		fmt.Printf("calling victim trampoline\n")
+		if id == "miliao" {
+			return "done"
 		}
+		c++
+		if c > len(id) {
+			break
+		}
+	}
 
 	fmt.Printf("len:%d\n", len(id))
 	return id + "xxx3"
 }
 
 func TestInplaceFixAtMoveArea(t *testing.T) {
-	code := []byte {
+	code := []byte{
 		/*
-		0x48, 0x8b, 0x48, 0x08, // mov 0x8(%rax),%rcx
-		0x74, 0x4, // jbe
-		0x48, 0x8b, 0x48, 0x18, // sub 0x18(%rax), %rcx
-		0x48, 0x89, 0x4c, 0x24, 0x10, // %rcx, 0x10(%rsp)
-		0xc3, // retq
-		0xcc, 0xcc,
+			0x48, 0x8b, 0x48, 0x08, // mov 0x8(%rax),%rcx
+			0x74, 0x4, // jbe
+			0x48, 0x8b, 0x48, 0x18, // sub 0x18(%rax), %rcx
+			0x48, 0x89, 0x4c, 0x24, 0x10, // %rcx, 0x10(%rsp)
+			0xc3, // retq
+			0xcc, 0xcc,
 		*/
 		0x90, 0x90,
 		0x74, 0x04,
@@ -887,8 +887,8 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 	assert.Equal(t, "txtxxx2", msg1)
 
 	ret := []byte{
-		0x90,0x90,
-		0x0f,0x84,0x74,0xfc, 0xff,0xff,
+		0x90, 0x90,
+		0x0f, 0x84, 0x74, 0xfc, 0xff, 0xff,
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0xc3,
@@ -902,7 +902,7 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 	assert.Equal(t, ret[:8], fc2[:8])
 	assert.Equal(t, ret[5:], fc1[5:])
 
-	code2 := []byte {
+	code2 := []byte{
 		0x90, 0x90, 0x90, 0x90,
 		0x74, 0x04,
 		0x90, 0x90, 0x90, 0x90,
@@ -922,5 +922,5 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 	CopyInstruction(target, code2)
 
 	fsz, _ := GetFuncSizeByGuess(GetArchMode(), target, false)
-	assert.Equal(t, len(code2) - 1, int(fsz))
+	assert.Equal(t, len(code2)-1, int(fsz))
 }

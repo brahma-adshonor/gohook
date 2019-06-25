@@ -9,8 +9,8 @@ import (
 )
 
 type CodeFix struct {
-	Code []byte
-	Addr uintptr
+	Code  []byte
+	Addr  uintptr
 	Delta int
 }
 
@@ -294,9 +294,9 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 	// thus will never find next prologue
 
 	/*
-	if funcSz == 0 && !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
-		return nil, errors.New(fmt.Sprintf("invalid func prologue, addr:0x%x", start))
-	}
+		if funcSz == 0 && !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
+			return nil, errors.New(fmt.Sprintf("invalid func prologue, addr:0x%x", start))
+		}
 	*/
 
 	curSz := 0
@@ -413,7 +413,7 @@ func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
 // not known to runtime.
 // solution to this is, we should just copy those non-call instructions to trampoline. in this way we don't mess up with runtime.
 // TODO/FIXME
-func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) {
+func copyFuncInstruction(mode int, from, to uintptr, sz int, allowCall bool) ([]CodeFix, error) {
 	curSz := 0
 	curAddr := from
 	fix := make([]CodeFix, 0, 256)
@@ -429,6 +429,10 @@ func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) 
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
 			break
+		} else if !allowCall && sz == 5 && nc[0] == 0xe8 {
+			// call instruction is not allowed to move.
+			// this will mess up with golang stack reallocation.
+			return nil, fmt.Errorf("call instruction is not allowed to copy")
 		}
 
 		if ft == FT_OVERFLOW {
@@ -449,10 +453,10 @@ func copyFuncInstruction(mode int, from, to uintptr, sz int) ([]CodeFix, error) 
 
 func MoveShortJumpTo(mode int, from, to uintptr, ssz, dsz int) ([]CodeFix, error) {
 	/*
-	curSz := 0
-	toAddr := to
-	curAddr := from
-	fix := make([]CodeFix, 0, 64)
+		curSz := 0
+		toAddr := to
+		curAddr := from
+		fix := make([]CodeFix, 0, 64)
 	*/
 
 	return nil, nil
@@ -464,7 +468,7 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	newAddr := addr
 	fix := make([]CodeFix, 0, 256)
 
-	trail := makeSliceFromPointer(addr + uintptr(funcSz), 1024)
+	trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
 	for i := 0; i < len(trail); i++ {
 		if trail[i] != 0xcc {
 			break
@@ -502,12 +506,12 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 			newsz = len(nc)
 			delta = len(nc) - 2
 
-			if newAddr < addr + uintptr(move_sz) {
+			if newAddr < addr+uintptr(move_sz) {
 				move_sz += delta
 			}
 		}
 
-		fix = append(fix, CodeFix{Code: nc, Addr: newAddr, Delta:delta})
+		fix = append(fix, CodeFix{Code: nc, Addr: newAddr, Delta: delta})
 
 		curSz += sz
 		newAddr += uintptr(newsz)
