@@ -183,7 +183,7 @@ func translateJump(off int64, code []byte) ([]byte, error) {
 	}
 }
 
-func adjustInstructionOffset(code []byte, off int64) ([]byte,error) {
+func adjustInstructionOffset(code []byte, off int64) ([]byte, error) {
 	if code[0] == 0xe3 || code[0] == 0xeb || (code[0] >= 0x70 && code[0] <= 0x7f) {
 		offset := int(int8(code[1]))
 		if offset == int(off) {
@@ -342,7 +342,7 @@ func FixOneInstruction(mode int, fix_recursive_call bool, startAddr, curAddr uin
 	return sz, FT_OTHER, nc
 }
 
-func doFixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_sz int, inst []CodeFix) ([]CodeFix, error) {
+func doFixTargetFuncCode(all bool, mode int, start uintptr, funcSz int, to uintptr, move_sz int, inst []CodeFix) ([]CodeFix, error) {
 	fix := make([]CodeFix, 0, 64)
 
 	curSz := 0
@@ -371,7 +371,9 @@ func doFixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_s
 		}
 
 		if ft != FT_OTHER && ft != FT_SKIP {
-			fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+			fix = append(fix, CodeFix{Code: nc, Addr: curAddr, Foreign: true})
+		} else if all {
+			fix = append(fix, CodeFix{Code: nc, Addr: curAddr, Foreign: true})
 		}
 
 		curSz += sz
@@ -396,7 +398,9 @@ func doFixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_s
 		}
 
 		if ft != FT_OTHER && ft != FT_RET && ft != FT_SKIP {
-			fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+			fix = append(fix, CodeFix{Code: nc, Addr: curAddr, Foreign: false})
+		} else if all {
+			fix = append(fix, CodeFix{Code: nc, Addr: curAddr, Foreign: false})
 		}
 
 		curSz += sz
@@ -412,7 +416,7 @@ func doFixTargetFuncCode(mode int, start uintptr, funcSz int, to uintptr, move_s
 // since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
 func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_sz int) ([]CodeFix, error) {
 	inst, _ := parseInstruction(mode, start, int(funcSz), false)
-	return doFixTargetFuncCode(mode, start, int(funcSz), to, move_sz, inst)
+	return doFixTargetFuncCode(false, mode, start, int(funcSz), to, move_sz, inst)
 }
 
 func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
@@ -518,12 +522,19 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 
 		off := int64(absAddr - curAddr - uintptr(len(code)))
 
+		fmt.Printf("adjust inst at:%x, sz:%d, delem:%x, target:%x, off:%x\n", curAddr, len(code), delem, absAddr, off)
+
 		if curAddr <= delem && absAddr > delem && absAddr < funcEnd {
 			off += int64(moveSize)
 		} else if curAddr > delem && absAddr >= start && absAddr <= delem {
 			off -= int64(moveSize)
 		} else {
 			continue
+		}
+
+		if curAddr > delem {
+			curAddr += uintptr(moveSize)
+			inst[i].Addr = curAddr
 		}
 
 		c, err := adjustInstructionOffset(code, off)
@@ -537,7 +548,7 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 	return nil
 }
 
-func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, move_sz int) ([]CodeFix, error) {
+func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, move_sz int) (int, []CodeFix, error) {
 	newSz := 0
 	fix := make([]CodeFix, 0, 256)
 
@@ -551,16 +562,20 @@ func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, 
 			break
 		}
 
+		foreign := false
+		if curAddr < addr + uintptr(move_sz) {
+			foreign = true
+		}
+
 		if ft == FT_OVERFLOW {
 			if sz != 2 {
-				return nil, fmt.Errorf("inst overflow with size != 2")
+				return 0, nil, fmt.Errorf("inst overflow with size != 2")
 			}
 
 			var err error
-			off := calcOffset(2, addr, curAddr, to, move_sz, int32(int8(nc[1])))
-			nc, err = translateJump(off, nc)
+			nc, err = translateJump(int64(int8(nc[1])), nc)
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 
 			delta := len(nc) - 2
@@ -571,19 +586,19 @@ func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, 
 			inst[i].Code = nc
 			err = adjustJmpOffset(mode, addr, inst[i].Addr, funcSz, delta, inst)
 			if err != nil {
-				return nil, err
+				return 0, nil, err
 			}
 		}
 
 		newSz += len(nc)
-		fix = append(fix, CodeFix{Code: nc, Addr: curAddr})
+		fix = append(fix, CodeFix{Code: nc, Addr: curAddr, Foreign: foreign})
 	}
 
 	if newSz > funcSz {
-		return fix, errInplaceFixSizeNotEnough
+		return move_sz, fix, errInplaceFixSizeNotEnough
 	}
 
-	return fix, nil
+	return move_sz, fix, nil
 }
 
 func parseInstruction(mode int, addr uintptr, funcSz int, minimal bool) ([]CodeFix, error) {
@@ -620,8 +635,10 @@ func parseInstruction(mode int, addr uintptr, funcSz int, minimal bool) ([]CodeF
 			break
 		}
 
-		c := CodeFix{Addr:addr+uintptr(curLen),Code:code[:inst.Len]}
-		ret = append(ret, c)
+		c := make([]byte, inst.Len)
+		copy(c, code)
+		cf := CodeFix{Addr:addr+uintptr(curLen),Code:c}
+		ret = append(ret, cf)
 
 		curLen = curLen + inst.Len
 		code = makeSliceFromPointer(addr+uintptr(curLen), 16)
@@ -644,116 +661,15 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	}
 
 	code, _ := parseInstruction(mode, addr, funcSz, false)
-	fix, err := translateShortJump(mode, addr, to, code, funcSz, move_sz)
+	move_sz, fix, err := translateShortJump(mode, addr, to, code, funcSz, move_sz)
 
 	if err != nil {
 		return nil, err
 	}
 
-	newMoveSz := 0
+	fmt.Printf("translate short jump done, total:%d\n", len(fix))
 
-	// move all instructions within move site to trampoline
-	for i := range fix {
-		if newMoveSz >= jumpSize {
-			break
-		}
-
-		newMoveSz += len(fix[i].Code)
-	}
-
-	return doFixTargetFuncCode(mode, addr, funcSz, to, newMoveSz, fix)
-}
-
-// not working and difficult to read.
-func fixFuncInstructionInplaceBroken(mode int, addr, to uintptr, funcSz int, move_sz int, jumpSize int) ([]CodeFix, error) {
-	curSz := 0
-	startAddr := addr
-	curAddr := addr
-	newCurAddr := addr
-	oldMoveSz := move_sz
-	fix := make([]CodeFix, 0, 256)
-
-	adjust := false
-
-	trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
-	for i := 0; i < len(trail); i++ {
-		if trail[i] != 0xcc {
-			break
-		}
-		funcSz++
-	}
-
-	for {
-		if curSz >= funcSz /*&& int(newCurAddr - addr) >= funcSz*/ {
-			break
-		}
-
-		code := makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
-		sz, ft, nc := FixOneInstruction(mode, false, startAddr, newCurAddr, code, to, move_sz)
-
-		if sz == 0 && ft == FT_INVALID {
-			// the end or unrecognized instruction
-			break
-		}
-
-		delta := 0
-		newsz := sz
-
-		if ft == FT_OVERFLOW {
-			if sz != 2 {
-				return nil, fmt.Errorf("inst overflow with size != 2")
-			}
-
-			var err error
-			off := calcOffset(2, startAddr, newCurAddr, to, move_sz, int32(int8(nc[1])))
-			nc, err = translateJump(off, nc)
-			if err != nil {
-				return nil, err
-			}
-
-			newsz = len(nc)
-
-			if curAddr < addr+uintptr(oldMoveSz) {
-				delta = len(nc) - 2
-			}
-		}
-
-		if !adjust && jumpSize > 0 && int(curAddr - addr) >= jumpSize {
-			adjust = true
-			newCurAddr = addr + uintptr(jumpSize)
-			startAddr -= uintptr(move_sz - jumpSize)
-		}
-
-		foreign := false
-		if curAddr < addr + uintptr(jumpSize) {
-			foreign = true
-		}
-
-		insAddr := newCurAddr
-		if insAddr >= startAddr && insAddr < startAddr + uintptr(move_sz) {
-			insAddr = to + (newCurAddr - startAddr)
-		}
-
-		fmt.Printf("fix at:%x, startAddr:%x, newCuradd:%x, to:%x, newInstAddr:%x, sz:%d, movesz:%d\n",
-				curAddr, startAddr, newCurAddr, to, insAddr, len(nc), move_sz)
-
-		fix = append(fix, CodeFix{Code: nc, Addr: insAddr, Foreign: foreign})
-
-		curSz += sz
-		move_sz += delta
-		newCurAddr += uintptr(newsz)
-		curAddr = addr + uintptr(curSz)
-	}
-
-	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: newCurAddr, Foreign: false})
-
-	newSz := int(newCurAddr - addr)
-
-	if newSz > funcSz {
-		return fix, errInplaceFixSizeNotEnough
-	}
-
-	return fix, nil
+	return doFixTargetFuncCode(true, mode, addr, funcSz, to, move_sz, fix)
 }
 
 func genJumpCode(mode int, to, from uintptr) []byte {

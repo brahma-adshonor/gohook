@@ -80,6 +80,7 @@ func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeI
 	for _, f := range fix {
 		total_len += len(f.Code)
 		if f.Foreign {
+			fmt.Printf("foreign code:%x, sz:%d\n", f.Addr, len(f.Code))
 			size2 += len(f.Code)
 		}
 	}
