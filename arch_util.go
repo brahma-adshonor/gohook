@@ -11,7 +11,7 @@ import (
 type CodeFix struct {
 	Code  []byte
 	Addr  uintptr
-	Delta int
+	Foreign bool
 }
 
 var (
@@ -183,6 +183,32 @@ func translateJump(off int64, code []byte) ([]byte, error) {
 	}
 }
 
+func calcJumpToAbsAddr(mode int, addr uintptr, code []byte) uintptr {
+	sz := 0
+	offset := 0
+
+	if code[0] == 0xe3 || code[0] == 0xeb || (code[0] >= 0x70 && code[0] <= 0x7f) {
+		sz = 2
+		offset = int(int8(code[1]))
+	}
+
+	if code[0] == 0x0f && (code[1] >= 0x80 && code[1] <= 0x8f) {
+		sz = 6
+		offset = int(int32(uint32(code[2]) | (uint32(code[3]) << 8) | (uint32(code[4]) << 16) | (uint32(code[5]) << 24)))
+	}
+
+	if code[0] == 0xe9 || code[0] == 0xe8 {
+		sz = 5
+		offset = int(int32(uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24)))
+	}
+
+	if sz == 0 {
+		return uintptr(0)
+	}
+
+	return addr + uintptr(sz) + uintptr(offset)
+}
+
 func FixOneInstruction(mode int, fix_recursive_call bool, startAddr, curAddr uintptr, code []byte, to uintptr, to_sz int) (int, int, []byte) {
 	nc := make([]byte, len(code))
 	copy(nc, code)
@@ -275,40 +301,21 @@ func FixOneInstruction(mode int, fix_recursive_call bool, startAddr, curAddr uin
 	return sz, FT_OTHER, nc
 }
 
-// FixTargetFuncCode fix function code starting at address [start]
-// parameter 'funcSz' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
-// 'to' specifys a new location, to which 'move_sz' bytes instruction will be copied
-// since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
-func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_sz int) ([]CodeFix, error) {
-	funcPrologue := funcPrologue64
-	if mode == 32 {
-		funcPrologue = funcPrologue32
-	}
-
-	prologueLen := len(funcPrologue)
-	code := makeSliceFromPointer(start, 16) // instruction takes at most 16 bytes
-
+func doFixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_sz int, inst []CodeFix) ([]CodeFix, error) {
 	fix := make([]CodeFix, 0, 64)
-
-	// don't use bytes.Index() as 'start' may be the last function, which not followed by another function.
-	// thus will never find next prologue
-
-	/*
-		if funcSz == 0 && !bytes.Equal(funcPrologue, code[:prologueLen]) { // not valid function start or invalid prologue
-			return nil, errors.New(fmt.Sprintf("invalid func prologue, addr:0x%x", start))
-		}
-	*/
 
 	curSz := 0
 	curAddr := start
 
-	for {
+	i := 0
+	for i = 0; i < len(inst); i++ {
 		if curSz >= move_sz {
 			break
 		}
 
-		code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
+		code := inst[i].Code
 		sz, ft, nc := FixOneInstruction(mode, false, start, curAddr, code, to, move_sz)
+
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
 			return nil, errors.New(fmt.Sprintf("invalid instruction scanned, addr:0x%x", curAddr))
@@ -330,17 +337,14 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 		curAddr = start + uintptr(curSz)
 	}
 
-	for {
+	for i = i; i < len(inst); i++ {
 		if funcSz > 0 && uint32(curAddr-start) >= funcSz {
 			break
 		}
 
-		code = makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
-		if funcSz == 0 && bytes.Equal(funcPrologue, code[:prologueLen]) {
-			break
-		}
-
+		code := inst[i].Code
 		sz, ft, nc := FixOneInstruction(mode, false, start, curAddr, code, to, move_sz)
+
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
 			break
@@ -359,6 +363,15 @@ func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_
 	}
 
 	return fix, nil
+}
+
+// FixTargetFuncCode fix function code starting at address [start]
+// parameter 'funcSz' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
+// 'to' specifys a new location, to which 'move_sz' bytes instruction will be copied
+// since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
+func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_sz int) ([]CodeFix, error) {
+	inst, _ := parseInstruction(mode, start, int(funcSz), false)
+	return doFixTargetFuncCode(mode, start, funcSz, to, move_sz, inst)
 }
 
 func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
@@ -451,37 +464,24 @@ func copyFuncInstruction(mode int, from, to uintptr, sz int, allowCall bool) ([]
 	return fix, nil
 }
 
-func MoveShortJumpTo(mode int, from, to uintptr, ssz, dsz int) ([]CodeFix, error) {
-	/*
-		curSz := 0
-		toAddr := to
-		curAddr := from
-		fix := make([]CodeFix, 0, 64)
-	*/
-
-	return nil, nil
+func adjustJmpOffset(mode int, start uintptr, funcSize int, inst []CodeFix) error {
+	return nil
 }
 
-func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz int) ([]CodeFix, error) {
+func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, move_sz int) ([]CodeFix, error) {
 	curSz := 0
+	originMoveSz := move_sz
+
 	curAddr := addr
 	newAddr := addr
 	fix := make([]CodeFix, 0, 256)
 
-	trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
-	for i := 0; i < len(trail); i++ {
-		if trail[i] != 0xcc {
-			break
-		}
-		funcSz++
-	}
-
-	for {
-		if curSz >= funcSz /*&& int(newAddr - addr) >= funcSz*/ {
+	for i := range inst {
+		if curSz >= funcSz {
 			break
 		}
 
-		code := makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
+		code := inst[i].Code
 		sz, ft, nc := FixOneInstruction(mode, false, addr, newAddr, code, to, move_sz)
 
 		if sz == 0 && ft == FT_INVALID {
@@ -489,7 +489,6 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 			break
 		}
 
-		delta := 0
 		newsz := sz
 		if ft == FT_OVERFLOW {
 			if sz != 2 {
@@ -504,23 +503,196 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 			}
 
 			newsz = len(nc)
-			delta = len(nc) - 2
+			delta := len(nc) - 2
 
-			if newAddr < addr+uintptr(move_sz) {
+			if curAddr < addr+uintptr(originMoveSz) {
 				move_sz += delta
+			}
+
+			err = adjustJmpOffset(mode, addr, funcSz, inst[i:])
+			if err != nil {
+				return nil, err
 			}
 		}
 
-		fix = append(fix, CodeFix{Code: nc, Addr: newAddr, Delta: delta})
+		fix = append(fix, CodeFix{Code: nc, Addr: newAddr})
 
 		curSz += sz
 		newAddr += uintptr(newsz)
 		curAddr = addr + uintptr(curSz)
 	}
 
-	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: newAddr})
+	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: newAddr, Foreign: false})
 
 	newSz := int(newAddr - addr)
+
+	if newSz > funcSz {
+		return fix, errInplaceFixSizeNotEnough
+	}
+
+	return fix, nil
+}
+
+func parseInstruction(mode int, addr uintptr, funcSz int, minimal bool) ([]CodeFix, error) {
+	funcPrologue := funcPrologue64
+	if mode == 32 {
+		funcPrologue = funcPrologue32
+	}
+
+	prologueLen := len(funcPrologue)
+	code := makeSliceFromPointer(addr, 16) // instruction takes at most 16 bytes
+
+	curLen := 0
+	int3_found := false
+
+	ret := make([]CodeFix, 0, 258)
+
+	for {
+		if funcSz > 0 && curLen >= funcSz {
+			break
+		}
+
+		inst, err := x86asm.Decode(code, mode)
+		if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(code[0])) {
+			break
+		}
+
+		if inst.Len == 1 && code[0] == 0xcc {
+			// 0xcc -> int3, trap to debugger, padding to function end
+			if minimal {
+				break
+			}
+			int3_found = true
+		} else if int3_found {
+			break
+		}
+
+		c := CodeFix{Addr:addr+uintptr(curLen),Code:code[:inst.Len]}
+		ret = append(ret, c)
+
+		curLen = curLen + inst.Len
+		code = makeSliceFromPointer(addr+uintptr(curLen), 16)
+
+		if bytes.Equal(funcPrologue, code[:prologueLen]) {
+			break
+		}
+	}
+
+	return ret, nil
+}
+
+func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz int, jumpSize int) ([]CodeFix, error) {
+	trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
+	for i := 0; i < len(trail); i++ {
+		if trail[i] != 0xcc {
+			break
+		}
+		funcSz++
+	}
+
+	code, _ := parseInstruction(mode, addr, funcSz, false)
+	fix, err := translateShortJump(mode, addr, to, code, funcSz, move_sz)
+	if err != nil {
+		return nil, err
+	}
+
+	newMoveSz := 0
+
+	// move all instructions within move site to trampoline
+	for i := range fix {
+		if newMoveSz >= jumpSize {
+			break
+		}
+
+		newMoveSz += len(fix[i].Code)
+	}
+
+	return nil, nil
+}
+
+func fixFuncInstructionInplaceBroken(mode int, addr, to uintptr, funcSz int, move_sz int, jumpSize int) ([]CodeFix, error) {
+	curSz := 0
+	startAddr := addr
+	curAddr := addr
+	newCurAddr := addr
+	oldMoveSz := move_sz
+	fix := make([]CodeFix, 0, 256)
+
+	adjust := false
+
+	trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
+	for i := 0; i < len(trail); i++ {
+		if trail[i] != 0xcc {
+			break
+		}
+		funcSz++
+	}
+
+	for {
+		if curSz >= funcSz /*&& int(newCurAddr - addr) >= funcSz*/ {
+			break
+		}
+
+		code := makeSliceFromPointer(curAddr, 16) // instruction takes at most 16 bytes
+		sz, ft, nc := FixOneInstruction(mode, false, startAddr, newCurAddr, code, to, move_sz)
+
+		if sz == 0 && ft == FT_INVALID {
+			// the end or unrecognized instruction
+			break
+		}
+
+		delta := 0
+		newsz := sz
+
+		if ft == FT_OVERFLOW {
+			if sz != 2 {
+				return nil, fmt.Errorf("inst overflow with size != 2")
+			}
+
+			var err error
+			off := calcOffset(2, startAddr, newCurAddr, to, move_sz, int32(int8(nc[1])))
+			nc, err = translateJump(off, nc)
+			if err != nil {
+				return nil, err
+			}
+
+			newsz = len(nc)
+
+			if curAddr < addr+uintptr(oldMoveSz) {
+				delta = len(nc) - 2
+			}
+		}
+
+		if !adjust && jumpSize > 0 && int(curAddr - addr) >= jumpSize {
+			adjust = true
+			newCurAddr = addr + uintptr(jumpSize)
+			startAddr -= uintptr(move_sz - jumpSize)
+		}
+
+		foreign := false
+		if curAddr < addr + uintptr(jumpSize) {
+			foreign = true
+		}
+
+		insAddr := newCurAddr
+		if insAddr >= startAddr && insAddr < startAddr + uintptr(move_sz) {
+			insAddr = to + (newCurAddr - startAddr)
+		}
+
+		fmt.Printf("fix at:%x, startAddr:%x, newCuradd:%x, to:%x, newInstAddr:%x, sz:%d, movesz:%d\n",
+				curAddr, startAddr, newCurAddr, to, insAddr, len(nc), move_sz)
+
+		fix = append(fix, CodeFix{Code: nc, Addr: insAddr, Foreign: foreign})
+
+		curSz += sz
+		move_sz += delta
+		newCurAddr += uintptr(newsz)
+		curAddr = addr + uintptr(curSz)
+	}
+
+	fix = append(fix, CodeFix{Code: []byte{0xcc}, Addr: newCurAddr, Foreign: false})
+
+	newSz := int(newCurAddr - addr)
 
 	if newSz > funcSz {
 		return fix, errInplaceFixSizeNotEnough
