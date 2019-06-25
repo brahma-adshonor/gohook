@@ -9,8 +9,8 @@ import (
 )
 
 type CodeFix struct {
-	Code  []byte
-	Addr  uintptr
+	Code    []byte
+	Addr    uintptr
 	Foreign bool
 }
 
@@ -563,7 +563,7 @@ func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, 
 		}
 
 		foreign := false
-		if curAddr < addr + uintptr(move_sz) {
+		if curAddr < addr+uintptr(move_sz) {
 			foreign = true
 		}
 
@@ -637,7 +637,7 @@ func parseInstruction(mode int, addr uintptr, funcSz int, minimal bool) ([]CodeF
 
 		c := make([]byte, inst.Len)
 		copy(c, code)
-		cf := CodeFix{Addr:addr+uintptr(curLen),Code:c}
+		cf := CodeFix{Addr: addr + uintptr(curLen), Code: c}
 		ret = append(ret, cf)
 
 		curLen = curLen + inst.Len
@@ -669,7 +669,21 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 
 	fmt.Printf("translate short jump done, total:%d\n", len(fix))
 
-	return doFixTargetFuncCode(true, mode, addr, funcSz, to, move_sz, fix)
+	fix, err1 := doFixTargetFuncCode(true, mode, addr, funcSz, to, move_sz, fix)
+	if err1 != nil {
+		return fix, err1
+	}
+
+	curAddr := to
+	for i := range fix {
+		if !fix[i].Foreign {
+			break
+		}
+		fix[i].Addr = curAddr
+		curAddr += uintptr(len(fix[i].Code))
+	}
+
+	return fix, nil
 }
 
 func genJumpCode(mode int, to, from uintptr) []byte {

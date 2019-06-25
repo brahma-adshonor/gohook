@@ -92,7 +92,7 @@ func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeI
 	sf := make([]byte, total_len)
 	copy(sf, origin)
 
-	tramp_origin := makeSliceFromPointer(to, size2 + 64)
+	tramp_origin := makeSliceFromPointer(to, size2+64)
 	tf := make([]byte, len(tramp_origin))
 	copy(tf, tramp_origin)
 
@@ -178,9 +178,9 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			} else {
 				info.How = "adjust"
 				/*
-				ts = makeSliceFromPointer(target, len(jumpcode)+65)
-				insLen = GetInsLenGreaterThan(mode, ts, len(jumpcode))
-				ts = makeSliceFromPointer(target, insLen)
+					ts = makeSliceFromPointer(target, len(jumpcode)+65)
+					insLen = GetInsLenGreaterThan(mode, ts, len(jumpcode))
+					ts = makeSliceFromPointer(target, insLen)
 				*/
 			}
 		} else {
