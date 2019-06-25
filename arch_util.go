@@ -516,33 +516,29 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 		curAddr := inst[i].Addr
 
 		absAddr := calcJumpToAbsAddr(mode, curAddr, code)
-		if absAddr == uintptr(0) {
-			continue
-		}
+		if absAddr != uintptr(0) {
+			off := int64(absAddr - curAddr - uintptr(len(code)))
 
-		off := int64(absAddr - curAddr - uintptr(len(code)))
+			fmt.Printf("adjust inst at:%x, sz:%d, delem:%x, target:%x, off:%x\n", curAddr, len(code), delem, absAddr, off)
 
-		fmt.Printf("adjust inst at:%x, sz:%d, delem:%x, target:%x, off:%x\n", curAddr, len(code), delem, absAddr, off)
+			if curAddr <= delem && absAddr > delem && absAddr < funcEnd {
+				off += int64(moveSize)
+			} else if curAddr > delem && (absAddr <= delem || absAddr >= funcEnd) {
+				off -= int64(moveSize)
+			}
 
-		if curAddr <= delem && absAddr > delem && absAddr < funcEnd {
-			off += int64(moveSize)
-		} else if curAddr > delem && absAddr >= start && absAddr <= delem {
-			off -= int64(moveSize)
-		} else {
-			continue
+			c, err := adjustInstructionOffset(code, off)
+			if err != nil {
+				return err
+			}
+
+			inst[i].Code = c
 		}
 
 		if curAddr > delem {
 			curAddr += uintptr(moveSize)
 			inst[i].Addr = curAddr
 		}
-
-		c, err := adjustInstructionOffset(code, off)
-		if err != nil {
-			return err
-		}
-
-		inst[i].Code = c
 	}
 
 	return nil
@@ -675,14 +671,27 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	}
 
 	curAddr := to
+	firstBody := addr
 	for i := range fix {
 		if !fix[i].Foreign {
+			firstBody = fix[i].Addr
 			break
 		}
+		fmt.Printf("foreign addr:%x, sz:%d\n", curAddr, len(fix[i].Code))
 		fix[i].Addr = curAddr
 		curAddr += uintptr(len(fix[i].Code))
 	}
 
+	mvAddr := addr + uintptr(jumpSize)
+	msz := -int(firstBody - mvAddr)
+	err2 := adjustJmpOffset(mode, addr, mvAddr, funcSz, msz, fix)
+
+	if err2 != nil {
+		fmt.Printf("error in fixing inplace\n")
+		return nil, err2
+	}
+
+	fmt.Printf("done fixing inplace\n")
 	return fix, nil
 }
 

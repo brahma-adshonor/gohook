@@ -759,7 +759,7 @@ func TestFixInplace(t *testing.T) {
 	assert.True(t, len(raw) >= len(info.Origin))
 	raw = raw[:len(info.Origin)]
 	assert.Equal(t, raw, info.Origin)
-	assert.Equal(t, 19, len(info.Fix))
+	assert.Equal(t, 18, len(info.Fix))
 	assert.Equal(t, prefix[:5], fs[:5])
 
 	off1 := calcOffset(2, addr-4, curAddr1-4, toAddr, mvSize, int32(int8(d1)))
@@ -852,7 +852,7 @@ func foo_for_inplace_fix_delimiter(id string) string {
 func foo_for_inplace_fix_replace(id string) string {
 	c := 0
 	for {
-		fmt.Printf("calling victim trampoline\n")
+		fmt.Printf("calling foo_for_inplace_fix_replace\n")
 		if id == "miliao" {
 			return "done"
 		}
@@ -871,7 +871,7 @@ func foo_for_inplace_fix_replace(id string) string {
 func foo_for_inplace_fix_trampoline(id string) string {
 	c := 0
 	for {
-		fmt.Printf("calling victim trampoline\n")
+		fmt.Printf("calling foo_for_inplace_fix_trampoline\n")
 		if id == "miliao" {
 			return "done"
 		}
@@ -919,6 +919,9 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 	fmt.Printf("debug info:%s\n", ShowDebugInfo())
 
 	msg1 := foo_for_inplace_fix("txt")
+
+	fmt.Printf("calling foo inplace fix func\n")
+
 	assert.Equal(t, "txtxxx2", msg1)
 
 	off1 := int32(calcOffset(2, target, target+2, trampoline, 5, 0x04))

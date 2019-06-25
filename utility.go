@@ -85,7 +85,6 @@ func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeI
 		}
 	}
 
-	fmt.Printf("size2:%d\n", size2)
 	jumpcode2 := genJumpCode(mode, addr+uintptr(jumpSize), to+uintptr(size2))
 
 	origin := makeSliceFromPointer(addr, int(total_len))
