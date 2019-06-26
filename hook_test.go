@@ -693,12 +693,19 @@ func inplaceFix(a, b, c int, e, f, g string) int {
 }
 
 func TestFixInplace(t *testing.T) {
+	d0 := int32(0x01b1)
 	d1 := byte(0xb2) // byte(-78)
 	d2 := byte(0xa8) // byte(-88)
-	prefix := []byte{
+	prefix1 := []byte{
 		0x64, 0x48, 0x8b, 0x0c, 0x25, 0xf8, 0xff, 0xff, 0xff, // 9
 		0x48, 0x3b, 0x61, 0x10, // 4
-		0x0f, 0x86, 0xb1, 0x01, 0x00, 0x00, // 6
+	}
+
+	jc0 := []byte{
+		0x0f, 0x86, byte(d0), byte(d0 >> 8), 0x00, 0x00, // jmp
+	}
+
+	prefix2 := []byte{
 		0x48, 0x83, 0xec, 0x58, // 4
 		0x48, 0x89, 0x6c, 0x24, 0x50, // 5
 		0x48, 0x8d, 0x6c, 0x24, 0x50, // 5
@@ -734,7 +741,7 @@ func TestFixInplace(t *testing.T) {
 		0xcc, 0xcc, 0xcc, 0xcc,
 	}
 
-	fc := append(append(append(append(prefix, jc1...), mid...), jc2...), posfix...)
+	fc := append(append(append(append(append(append(prefix1, jc0...), prefix2...), jc1...), mid...), jc2...), posfix...)
 
 	info := &CodeInfo{}
 	addr := GetFuncAddr(inplaceFix)
@@ -760,24 +767,30 @@ func TestFixInplace(t *testing.T) {
 	raw = raw[:len(info.Origin)]
 	assert.Equal(t, raw, info.Origin)
 	assert.Equal(t, 18, len(info.Fix))
-	assert.Equal(t, prefix[:5], fs[:5])
+	assert.Equal(t, prefix1[:5], fs[:5])
 
-	off1 := calcOffset(2, addr-4, curAddr1-4, toAddr, mvSize, int32(int8(d1)))
+	off0 := d0 + 4
+	fix0, _ := adjustInstructionOffset(jc0, int64(off0))
+	fmt.Printf("inplace fix, off0:%x, sz:%d\n", off0, len(fix0))
+
+	// off1 := calcOffset(2, addr-4, curAddr1-4, toAddr, mvSize, int32(int8(d1))) + 4
+	to1 := curAddr1 + uintptr(2) + uintptr(int32(int8(d1)))
+	newTo1 := toAddr + to1 - addr
+	off1 := int64(newTo1 - (curAddr1 - uintptr(4)) - 2)
 	fix1, _ := translateJump(off1, jc1)
-	fmt.Printf("inplace fix, off1:%x\n", off1)
+	fmt.Printf("inplace fix, off1:%x, sz:%d\n", off1, len(fix1))
 
-	off2 := calcOffset(2, addr-4, curAddr2-4, toAddr, mvSize, int32(int8(d2)))
+	to2 := curAddr2 + uintptr(2) + uintptr(int32(int8(d2)))
+	newTo2 := toAddr + to2 - addr
+	off2 := int64(newTo2 - (curAddr2 + uintptr(3) - uintptr(4)) - 2)
 	fix2, _ := translateJump(off2, jc2)
-	fmt.Printf("inplace fix, off2:%x\n", off2)
+	fmt.Printf("inplace fix, off2:%x, sz:%d\n", off2, len(fix2))
 
-	fc2 := append(append(append(append(append(prefix[:5], prefix[9:]...), fix1...), mid...), fix2...), posfix...)
-
+	fc2 := append(append(append(append(append(append(append(prefix1[:5], prefix1[9:]...), fix0...), prefix2...), fix1...), mid...), fix2...), posfix...)
 	assert.Equal(t, len(fc)-4+3+4, len(fc2))
 
-	fc3 := fc2[:len(fc2)-3]
-
-	assert.Equal(t, len(fc3), len(fs))
-	assert.Equal(t, fc3, fs)
+	fs = makeSliceFromPointer(addr, len(fc2)-len(posfix))
+	assert.Equal(t, fc2[:len(fc2)-len(posfix)], fs)
 }
 
 func inplaceFix2(a, b, c int, e, f, g string) int {
@@ -862,9 +875,9 @@ func foo_for_inplace_fix_replace(id string) string {
 		}
 	}
 
-	fmt.Printf("len:%d\n", len(id))
-	foo_for_inplace_fix_trampoline("origin")
+	foo_for_inplace_fix_trampoline("miliao")
 
+	fmt.Printf("len:%d\n", len(id))
 	return id + "xxx2"
 }
 
@@ -896,7 +909,7 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 			0xcc, 0xcc,
 		*/
 		0x90, 0x90,
-		0x74, 0x04, // jbe 4
+		0xeb, 0x04, // jmp 4
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0xc3,
@@ -906,13 +919,14 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 	}
 
 	target := GetFuncAddr(foo_for_inplace_fix)
-	// replace := GetFuncAddr(foo_for_inplace_fix_replace)
+	replace := GetFuncAddr(foo_for_inplace_fix_replace)
 	trampoline := GetFuncAddr(foo_for_inplace_fix_trampoline)
 
 	assert.True(t, isByteOverflow((int32)(trampoline-target)))
 
 	CopyInstruction(target, code)
 
+	fmt.Printf("short call target:%x, replace:%x, trampoline:%x\n", target, replace, trampoline)
 	err1 := Hook(foo_for_inplace_fix, foo_for_inplace_fix_replace, foo_for_inplace_fix_trampoline)
 	assert.Nil(t, err1)
 
@@ -931,7 +945,7 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 
 	ret := []byte{
 		0x90, 0x90,
-		0x0f, 0x84, 0x74, 0xfc, 0xff, 0xff,
+		0xe9, 0x74, 0xfc, 0xff, 0xff,
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0x90, 0x90, 0x90, 0x90, 0x90,
 		0xc3,
