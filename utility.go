@@ -80,7 +80,7 @@ func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeI
 	for _, f := range fix {
 		total_len += len(f.Code)
 		if f.Foreign {
-			fmt.Printf("foreign code:%x, sz:%d\n", f.Addr, len(f.Code))
+			// fmt.Printf("foreign code:%x, sz:%d\n", f.Addr, len(f.Code))
 			size2 += len(f.Code)
 		}
 	}
@@ -168,7 +168,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			err1 := doFixFuncInplace(mode, target, trampoline, int(sz1), insLen, info, len(jumpcode))
 			if err1 != nil {
 				info.How = "copy"
-				fmt.Printf("fix inplace failed, %s\n", err1.Error())
+				// fmt.Printf("fix inplace failed, %s\n", err1.Error())
 				origin, err2 := doCopyFunction(mode, false, target, trampoline, sz1, sz2, info)
 				if err2 != nil {
 					return nil, fmt.Errorf("both fix/fix2/copy failed, fix:%s, fix2:%s, copy:%s", err.Error(), err1.Error(), err2.Error())
@@ -209,7 +209,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 }
 
 func printInstructionFix(v CodeFix, origin []byte) {
-	fmt.Printf("addr:0x%x, code:", v.Addr)
+	// fmt.Printf("addr:0x%x, code:", v.Addr)
 	for _, c := range v.Code {
 		fmt.Printf(" %x", c)
 	}
