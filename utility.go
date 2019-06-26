@@ -39,14 +39,14 @@ func GetFuncInsSize(f interface{}) uint32 {
 	return sz
 }
 
-func CopyFunction(from, to interface{}, info *CodeInfo) ([]byte, error) {
+func CopyFunction(allowCall bool, from, to interface{}, info *CodeInfo) ([]byte, error) {
 	s := reflect.ValueOf(from).Pointer()
 	d := reflect.ValueOf(to).Pointer()
 
 	mode := GetArchMode()
 	sz1 := getFuncSize(mode, s, true)
 	sz2 := getFuncSize(mode, d, true)
-	return doCopyFunction(mode, s, d, sz1, sz2, info)
+	return doCopyFunction(mode, allowCall, s, d, sz1, sz2, info)
 }
 
 func getFuncSize(mode int, addr uintptr, minimal bool) uint32 {
@@ -66,36 +66,53 @@ func getFuncSize(mode int, addr uintptr, minimal bool) uint32 {
 	return sz
 }
 
-func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeInfo) error {
-	fix, err := fixFuncInstructionInplace(mode, addr, to, funcSz, to_sz)
+func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeInfo, jumpSize int) error {
+	fix, err := fixFuncInstructionInplace(mode, addr, to, funcSz, to_sz, jumpSize)
 	if err != nil {
+		if err == errInplaceFixSizeNotEnough {
+			// TODO
+		}
 		return err
 	}
 
+	size2 := 0
 	total_len := 0
 	for _, f := range fix {
 		total_len += len(f.Code)
+		if f.Foreign {
+			// fmt.Printf("foreign code:%x, sz:%d\n", f.Addr, len(f.Code))
+			size2 += len(f.Code)
+		}
 	}
+
+	jumpcode2 := genJumpCode(mode, addr+uintptr(jumpSize), to+uintptr(size2))
 
 	origin := makeSliceFromPointer(addr, int(total_len))
 	sf := make([]byte, total_len)
 	copy(sf, origin)
 
+	tramp_origin := makeSliceFromPointer(to, size2+64)
+	tf := make([]byte, len(tramp_origin))
+	copy(tf, tramp_origin)
+
 	for _, f := range fix {
 		CopyInstruction(f.Addr, f.Code)
 	}
 
+	CopyInstruction(to+uintptr(size2), jumpcode2)
+
 	info.Fix = fix
 	info.Origin = sf
+	info.TrampolineOrig = tf
 	return nil
 }
 
-func doCopyFunction(mode int, from, to uintptr, sz1, sz2 uint32, info *CodeInfo) ([]byte, error) {
+func doCopyFunction(mode int, allowCall bool, from, to uintptr, sz1, sz2 uint32, info *CodeInfo) ([]byte, error) {
 	if sz1 > sz2+1 { // add trailing int3 to the end
 		return nil, fmt.Errorf("source addr:%x, target addr:%x, sizeof source func(%d) > sizeof of target func(%d)", from, to, sz1, sz2)
 	}
 
-	fix, err2 := copyFuncInstruction(mode, from, to, int(sz1))
+	fix, err2 := copyFuncInstruction(mode, from, to, int(sz1), allowCall)
 	if err2 != nil {
 		return nil, err2
 	}
@@ -121,7 +138,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 
 	insLen := len(jumpcode)
 	if trampoline != uintptr(0) {
-		f := makeSliceFromPointer(target, len(jumpcode) + 65)
+		f := makeSliceFromPointer(target, len(jumpcode)+65)
 		insLen = GetInsLenGreaterThan(mode, f, len(jumpcode))
 	}
 
@@ -131,6 +148,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 	copy(info.Origin, ts)
 
 	info.How = "jump"
+	target_body_off := insLen
 
 	if trampoline != uintptr(0) {
 		sz := uint32(0)
@@ -138,7 +156,6 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 			sz, _ = elfInfo.GetFuncSize(target)
 		}
 
-		fix_trampoline := true
 		fix, err := FixTargetFuncCode(mode, target, sz, trampoline, insLen)
 
 		if err != nil {
@@ -148,20 +165,22 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 				return nil, fmt.Errorf("failed calc func size")
 			}
 
-			err1 := doFixFuncInplace(mode, target, trampoline, int(sz1), insLen, info)
+			err1 := doFixFuncInplace(mode, target, trampoline, int(sz1), insLen, info, len(jumpcode))
 			if err1 != nil {
 				info.How = "copy"
-				origin, err2 := doCopyFunction(mode, target, trampoline, sz1, sz2, info)
+				// fmt.Printf("fix inplace failed, %s\n", err1.Error())
+				origin, err2 := doCopyFunction(mode, false, target, trampoline, sz1, sz2, info)
 				if err2 != nil {
 					return nil, fmt.Errorf("both fix/fix2/copy failed, fix:%s, fix2:%s, copy:%s", err.Error(), err1.Error(), err2.Error())
 				}
-				fix_trampoline = false
 				info.TrampolineOrig = origin
 			} else {
 				info.How = "adjust"
-				ts = makeSliceFromPointer(target, len(jumpcode) + 65)
-				insLen = GetInsLenGreaterThan(mode, ts, len(jumpcode))
-				ts = makeSliceFromPointer(target, insLen)
+				/*
+					ts = makeSliceFromPointer(target, len(jumpcode)+65)
+					insLen = GetInsLenGreaterThan(mode, ts, len(jumpcode))
+					ts = makeSliceFromPointer(target, insLen)
+				*/
 			}
 		} else {
 			info.How = "fix"
@@ -173,10 +192,8 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 				v.Code = f
 				info.Fix = append(info.Fix, v)
 			}
-		}
 
-		if (fix_trampoline) {
-			jumpcode2 := genJumpCode(mode, target+uintptr(insLen), trampoline+uintptr(insLen))
+			jumpcode2 := genJumpCode(mode, target+uintptr(target_body_off), trampoline+uintptr(insLen))
 			f2 := makeSliceFromPointer(trampoline, insLen+len(jumpcode2)*2)
 			insLen2 := GetInsLenGreaterThan(mode, f2, insLen+len(jumpcode2))
 			info.TrampolineOrig = make([]byte, insLen2)
@@ -192,7 +209,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 }
 
 func printInstructionFix(v CodeFix, origin []byte) {
-	fmt.Printf("addr:0x%x, code:", v.Addr)
+	// fmt.Printf("addr:0x%x, code:", v.Addr)
 	for _, c := range v.Code {
 		fmt.Printf(" %x", c)
 	}
