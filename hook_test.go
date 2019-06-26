@@ -875,7 +875,8 @@ func foo_for_inplace_fix_replace(id string) string {
 		}
 	}
 
-	foo_for_inplace_fix_trampoline("miliao")
+	// TODO uncomment following
+	// foo_for_inplace_fix_trampoline("miliao")
 
 	fmt.Printf("len:%d\n", len(id))
 	return id + "xxx2"
@@ -938,8 +939,15 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 
 	assert.Equal(t, "txtxxx2", msg1)
 
-	off1 := int32(calcOffset(2, target, target+2, trampoline, 5, 0x04))
-	off2 := int32(calcOffset(2, target, target+15, trampoline, 9, -16) + 4)
+	sz1 := 5
+	na1 := trampoline + uintptr(2)
+	ta1 := target + uintptr(2 + 5 + 4)
+	off1 := ta1 - (na1 + uintptr(sz1))
+
+	sz2 := 6
+	na2 := target + uintptr(18)
+	ta2 := trampoline + uintptr(1)
+	off2 := ta2 - (na2 + uintptr(sz2))
 
 	fmt.Printf("off1:%x, off2:%x\n", off1, off2)
 
@@ -953,22 +961,22 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 		0xcc, 0xcc, 0xcc,
 	}
 
-	ret[4] = byte(off1)
-	ret[5] = byte(off1 >> 8)
-	ret[6] = byte(off1 >> 16)
-	ret[7] = byte(off1 >> 24)
+	ret[3] = byte(off1)
+	ret[4] = byte(off1 >> 8)
+	ret[5] = byte(off1 >> 16)
+	ret[6] = byte(off1 >> 24)
 
-	ret[21] = byte(off2)
-	ret[22] = byte(off2 >> 8)
-	ret[23] = byte(off2 >> 16)
-	ret[24] = byte(off2 >> 24)
+	ret[20] = byte(off2)
+	ret[21] = byte(off2 >> 8)
+	ret[22] = byte(off2 >> 16)
+	ret[23] = byte(off2 >> 24)
 
 	fc1 := makeSliceFromPointer(target, len(ret))
 	fc2 := makeSliceFromPointer(trampoline, len(ret))
 
-	assert.Equal(t, ret[:9], fc2[:9])
-	assert.Equal(t, byte(0xe9), fc2[9])
-	assert.Equal(t, ret[9:], fc1[5:len(ret)-4])
+	assert.Equal(t, ret[:8], fc2[:8])
+	assert.Equal(t, byte(0xe9), fc2[8])
+	assert.Equal(t, ret[8:], fc1[5:len(ret)-3])
 
 	code2 := []byte{
 		0x90, 0x90, 0x90, 0x90,
