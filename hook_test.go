@@ -875,7 +875,7 @@ func foo_for_inplace_fix_replace(id string) string {
 	}
 
 	// TODO uncomment following
-	// foo_for_inplace_fix_trampoline("miliao")
+	foo_for_inplace_fix_trampoline("miliao")
 
 	fmt.Printf("len:%d\n", len(id))
 	return id + "xxx2"
