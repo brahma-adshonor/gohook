@@ -773,16 +773,15 @@ func TestFixInplace(t *testing.T) {
 	fix0, _ := adjustInstructionOffset(jc0, int64(off0))
 	fmt.Printf("inplace fix, off0:%x, sz:%d\n", off0, len(fix0))
 
-	// off1 := calcOffset(2, addr-4, curAddr1-4, toAddr, mvSize, int32(int8(d1))) + 4
 	to1 := curAddr1 + uintptr(2) + uintptr(int32(int8(d1)))
 	newTo1 := toAddr + to1 - addr
-	off1 := int64(newTo1 - (curAddr1 - uintptr(4)) - 2)
+	off1 := int64(newTo1 - (curAddr1 - uintptr(4)) - 5)
 	fix1, _ := translateJump(off1, jc1)
 	fmt.Printf("inplace fix, off1:%x, sz:%d\n", off1, len(fix1))
 
 	to2 := curAddr2 + uintptr(2) + uintptr(int32(int8(d2)))
 	newTo2 := toAddr + to2 - addr
-	off2 := int64(newTo2 - (curAddr2 + uintptr(3) - uintptr(4)) - 2)
+	off2 := int64(newTo2 - (curAddr2 + uintptr(3) - uintptr(4)) - 6)
 	fix2, _ := translateJump(off2, jc2)
 	fmt.Printf("inplace fix, off2:%x, sz:%d\n", off2, len(fix2))
 
@@ -941,11 +940,11 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 
 	sz1 := 5
 	na1 := trampoline + uintptr(2)
-	ta1 := target + uintptr(2 + 5 + 4)
+	ta1 := target + uintptr(2 + 5 + 4 - 3)
 	off1 := ta1 - (na1 + uintptr(sz1))
 
 	sz2 := 6
-	na2 := target + uintptr(18)
+	na2 := target + uintptr(15 + 3 - 3)
 	ta2 := trampoline + uintptr(1)
 	off2 := ta2 - (na2 + uintptr(sz2))
 

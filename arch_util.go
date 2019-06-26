@@ -514,16 +514,20 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 	for i := range inst {
 		code := inst[i].Code
 		curAddr := inst[i].Addr
-
 		absAddr := calcJumpToAbsAddr(mode, curAddr, code)
+
+		if curAddr > delem && curAddr < funcEnd {
+			inst[i].Addr = curAddr + uintptr(moveSize)
+		}
+
 		if absAddr != uintptr(0) {
 			off := int64(absAddr - curAddr - uintptr(len(code)))
 
 			fmt.Printf("adjust inst at:%x, sz:%d, delem:%x, target:%x, funcEnd:%x, off:%x\n", curAddr, len(code), delem, absAddr, funcEnd, uintptr(off))
 
-			if (curAddr <= delem || curAddr >= funcEnd) && absAddr > delem && absAddr < funcEnd {
+			if (curAddr < delem || curAddr >= funcEnd) && absAddr > delem && absAddr < funcEnd {
 				off += int64(moveSize)
-			} else if (curAddr > delem && curAddr < funcEnd) && (absAddr <= delem || absAddr >= funcEnd) {
+			} else if (curAddr >= delem && curAddr < funcEnd) && (absAddr <= delem || absAddr >= funcEnd) {
 				off -= int64(moveSize)
 			} else {
 				fmt.Printf("skip adjusting at %x\n", curAddr)
@@ -535,11 +539,8 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 			}
 
 			inst[i].Code = c
-		}
-
-		if curAddr > delem && curAddr < funcEnd {
-			curAddr += uintptr(moveSize)
-			inst[i].Addr = curAddr
+			absAddr = calcJumpToAbsAddr(mode, inst[i].Addr, code)
+			fmt.Printf("after adjust inst, old addr:%x, new addr:%x, target:%x\n", curAddr, inst[i].Addr, absAddr)
 		}
 	}
 
