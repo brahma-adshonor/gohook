@@ -1,12 +1,14 @@
 ## Gohook
 A funny library to hook golang function dynamically at runtime, enabling functionality like patching in dynamic language.
 
+The most significant feature this library provided that makes it distinguished from others is that it supports calling back to the original function.
+
 Read this blogpost for further explanation of the implementation detail: https://www.cnblogs.com/catch/p/10973611.html
 
 ## How it works
 The general idea of this library is that gohook will find out the address of a go function and then insert a few jump instructions to redirect execution flow to the new function.
 
-there are 3 steps to perform a hook:
+there are a few steps to perform a hook:
 1. find out the address of a function, this can be accomplished by standard reflect library.
 2. inject jump code into target function, with carefully crafted binary instruction.
 3. implement trampoline function to enable calling back to the original function.
