@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"golang.org/x/arch/x86/x86asm"
 	"math"
+	"unsafe"
+
+	"golang.org/x/arch/x86/x86asm"
 )
 
 type CodeFix struct {
@@ -199,7 +201,7 @@ func adjustInstructionOffset(code []byte, off int64) ([]byte, error) {
 			return code, nil
 		}
 		if isIntOverflow(off) {
-			return nil, fmt.Errorf("int overflow in adjusting offset")
+			return nil, fmt.Errorf("int overflow in adjusting 6-bytes inst offset")
 		}
 		code[2] = byte(off)
 		code[3] = byte(off >> 8)
@@ -211,7 +213,7 @@ func adjustInstructionOffset(code []byte, off int64) ([]byte, error) {
 			return code, nil
 		}
 		if isIntOverflow(off) {
-			return nil, fmt.Errorf("int overflow in adjusting offset")
+			return nil, fmt.Errorf("int overflow in adjusting 5-bytes inst offset")
 		}
 		code[1] = byte(off)
 		code[2] = byte(off >> 8)
@@ -521,9 +523,13 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 		}
 
 		if absAddr != uintptr(0) {
-			off := int64(absAddr - curAddr - uintptr(len(code)))
+			delta := absAddr - curAddr - uintptr(len(code))
+			off := int64(delta)
+			if unsafe.Sizeof(uintptr(0)) == unsafe.Sizeof(int32(0)) {
+				off = int64(int32(off))
+			}
 
-			//fmt.Printf("adjust inst at:%x, sz:%d, delem:%x, target:%x, funcEnd:%x, off:%x\n", curAddr, len(code), delem, absAddr, funcEnd, uintptr(off))
+			// fmt.Printf("adjust inst at:%x, sz:%d, delem:%x, target:%x, funcEnd:%x, off:%x\n", curAddr, len(code), delem, absAddr, funcEnd, uintptr(off))
 
 			if (curAddr < delem || curAddr >= funcEnd) && absAddr > delem && absAddr < funcEnd {
 				off += int64(moveSize)
@@ -535,7 +541,7 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 
 			c, err := adjustInstructionOffset(code, off)
 			if err != nil {
-				return err
+				return fmt.Errorf("err occurs adjusting inst, addr:%x,off:%x,err:%s", curAddr, off, err.Error())
 			}
 
 			inst[i].Code = c
@@ -582,7 +588,7 @@ func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, 
 			}
 
 			inst[i].Code = nc
-			// fmt.Printf("extent overflow inst at:%x, toAddr:%x, sz:%d\n", curAddr, inst[i].Addr, len(nc))
+			// fmt.Printf("extent overflow inst at:%x, sz:%d, move sz:%d\n", curAddr, len(nc), move_sz)
 
 			err = adjustJmpOffset(mode, addr, curAddr, funcSz, delta, inst[i:])
 			if err != nil {
@@ -672,9 +678,8 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 		return nil, err
 	}
 
-	// fmt.Printf("translate short jump done, addr:%x, to:%x, total:%d\n", addr, to, len(fix))
-
 	fix, err1 := doFixTargetFuncCode(true, mode, addr, funcSz, to, move_sz, fix)
+
 	if err1 != nil {
 		return fix, err1
 	}
@@ -714,7 +719,18 @@ func genJumpCode(mode int, to, from uintptr) []byte {
 	// 2. otherwise, push target, then ret
 
 	var code []byte
-	relative := (uint32(math.Abs(float64(from-to))) < 0x7fffffff)
+
+	delta := int64(from - to)
+	if unsafe.Sizeof(uintptr(0)) == unsafe.Sizeof(int32(0)) {
+		delta = int64(int32(from - to))
+	}
+
+	relative := (delta <= 0x7fffffff)
+
+	if delta < 0 {
+		delta = -delta
+		relative = (delta <= 0x80000000)
+	}
 
 	// relative = false
 
