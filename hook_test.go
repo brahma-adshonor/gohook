@@ -3,10 +3,11 @@ package gohook
 import (
 	"bytes"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func myPrintf(f string, a ...interface{}) (n int, err error) {
@@ -32,6 +33,8 @@ func init() {
 	} else {
 		fmt.Printf("hook fmt.Printf() done\n")
 	}
+
+	fmt.Printf("debug info for init():%s\n", ShowDebugInfo())
 }
 
 //go:noinline
@@ -940,11 +943,11 @@ func TestInplaceFixAtMoveArea(t *testing.T) {
 
 	sz1 := 5
 	na1 := trampoline + uintptr(2)
-	ta1 := target + uintptr(2 + 5 + 4 - 3)
+	ta1 := target + uintptr(2+5+4-3)
 	off1 := ta1 - (na1 + uintptr(sz1))
 
 	sz2 := 6
-	na2 := target + uintptr(15 + 3 - 3)
+	na2 := target + uintptr(15+3-3)
 	ta2 := trampoline + uintptr(1)
 	off2 := ta2 - (na2 + uintptr(sz2))
 
