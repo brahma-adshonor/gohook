@@ -638,7 +638,7 @@ func TestCopyFunc(t *testing.T) {
 	ResetFuncPrologue()
 
 	addr := GetFuncAddr(mySprintf)
-	sz := GetFuncInsSize(mySprintf)
+	sz := GetFuncInstSize(mySprintf)
 
 	tp := makeSliceFromPointer(addr, int(sz))
 	txt := make([]byte, int(sz))
@@ -1065,10 +1065,59 @@ func TestShortCall(t *testing.T) {
 	r, _ := foo_short_call(32)
 	assert.Equal(t, 38, r)
 
-	fmt.Printf("start hook real short call func\n")
+	addr := GetFuncAddr(foo_short_call)
+	sz1 := GetFuncInstSize(foo_short_call)
+	addr2 := addr + uintptr(sz1)
+	fmt.Printf("start hook real short call func, start:%x, end:%x\n", addr, addr2)
+
 	err := Hook(foo_short_call, foo_short_call_replace, foo_short_call_trampoline)
 	assert.Nil(t, err)
 
 	r1, _ := foo_short_call(22)
 	assert.Equal(t, 1050, r1)
+
+	UnHook(foo_short_call)
+
+	r2, _ := foo_short_call(32)
+	assert.Equal(t, 38, r2)
+
+	code := make([]byte, 0, sz1)
+	for i := 0; i < int(sz1); i++ {
+		code = append(code, 0x90)
+	}
+
+	code1 := []byte{0xeb, 0x4}
+	code2 := []byte{0xeb, 0x5}
+
+	copy(code, code1)
+	copy(code[2:], code2)
+
+	ret := sz1 - 5
+	jmp1 := sz1 - 4
+	jmp2 := sz1 - 2
+
+	if sz1 > 0x7f {
+		ret = 0x70 - 5
+		jmp1 = 0x70 - 4
+		jmp2 = 0x70 - 2
+	}
+
+	code[ret] = byte(0xc3)
+
+	code3 := []byte{0xeb, byte(-jmp1 - 2)}
+	code4 := []byte{0xeb, byte(-jmp2 - 2)}
+
+	copy(code[jmp1:], code3)
+	copy(code[jmp2:], code4)
+
+	assert.Equal(t, code[:4], append(code1, code2...))
+
+	CopyInstruction(addr, code)
+
+	err = Hook(foo_short_call, foo_short_call_replace, foo_short_call_trampoline)
+	assert.Nil(t, err)
+
+	fmt.Printf("fix code for foo_short_call:\n%s\n", ShowDebugInfo())
+
+	foo_short_call(22)
 }

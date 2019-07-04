@@ -25,7 +25,7 @@ func makeSliceFromPointer(p uintptr, length int) []byte {
 	}))
 }
 
-func GetFuncInsSize(f interface{}) uint32 {
+func GetFuncInstSize(f interface{}) uint32 {
 	sz := uint32(0)
 	ptr := reflect.ValueOf(f).Pointer()
 	if elfInfo != nil {
@@ -68,10 +68,21 @@ func getFuncSize(mode int, addr uintptr, minimal bool) uint32 {
 
 func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeInfo, jumpSize int) error {
 	fix, err := fixFuncInstructionInplace(mode, addr, to, funcSz, to_sz, jumpSize)
-	if err != nil {
-		if err == errInplaceFixSizeNotEnough {
-			// TODO
+	for retry := 0; err != nil && retry < 8 && to_sz < funcSz/2; retry++ {
+		if err != errInplaceFixSizeNotEnough {
+			break
 		}
+
+		to_sz += 16
+		f := makeSliceFromPointer(addr, to_sz+16)
+		to_sz = GetInsLenGreaterThan(mode, f, to_sz)
+
+		// fmt.Printf("retry fix inplace by extending move size, move sz:%d\n", to_sz)
+
+		fix, err = fixFuncInstructionInplace(mode, addr, to, funcSz, to_sz, jumpSize)
+	}
+
+	if err != nil {
 		return err
 	}
 

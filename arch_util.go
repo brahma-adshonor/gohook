@@ -362,6 +362,10 @@ func doFixTargetFuncCode(all bool, mode int, start uintptr, funcSz int, to uintp
 		if sz == 0 && ft == FT_INVALID {
 			// the end or unrecognized instruction
 			return nil, errors.New(fmt.Sprintf("invalid instruction scanned, addr:0x%x", curAddr))
+		} else if sz == 5 && nc[0] == 0xe8 {
+			// call instruction is not allowed to move.
+			// this will mess up with golang stack reallocation.
+			return nil, fmt.Errorf("call instruction is not allowed to move")
 		}
 
 		if ft == FT_RET {
@@ -553,7 +557,7 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 	return nil
 }
 
-func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, move_sz int) (int, []CodeFix, error) {
+func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz, move_sz, jumpSize int) (int, []CodeFix, error) {
 	newSz := 0
 	fix := make([]CodeFix, 0, 256)
 
@@ -605,7 +609,7 @@ func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz int, 
 		fix = append(fix, CodeFix{Code: inst[i].Code, Addr: inst[i].Addr, Foreign: foreign})
 	}
 
-	if newSz > funcSz {
+	if newSz-move_sz > funcSz-jumpSize {
 		return move_sz, fix, errInplaceFixSizeNotEnough
 	}
 
@@ -663,16 +667,18 @@ func parseInstruction(mode int, addr uintptr, funcSz int, minimal bool) ([]CodeF
 }
 
 func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz int, jumpSize int) ([]CodeFix, error) {
-	trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
-	for i := 0; i < len(trail); i++ {
-		if trail[i] != 0xcc {
-			break
+	/*
+		trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
+		for i := 0; i < len(trail); i++ {
+			if trail[i] != 0xcc {
+				break
+			}
+			funcSz++
 		}
-		funcSz++
-	}
+	*/
 
 	code, _ := parseInstruction(mode, addr, funcSz, false)
-	move_sz, fix, err := translateShortJump(mode, addr, to, code, funcSz, move_sz)
+	move_sz, fix, err := translateShortJump(mode, addr, to, code, funcSz, move_sz, jumpSize)
 
 	if err != nil {
 		return nil, err
