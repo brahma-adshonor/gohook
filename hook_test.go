@@ -1122,9 +1122,16 @@ func TestShortCall(t *testing.T) {
 
 	foo_short_call(22)
 
-	fc := runtime.FuncForPC(addr2 + uintptr(2))
+	addr3 := addr2 + uintptr(2)
+	fc := runtime.FuncForPC(addr3)
+
 	assert.NotNil(t, fc)
 
 	fmt.Printf("func name get from addr beyond scope:%s\n", fc.Name())
 	assert.Equal(t, addr, fc.Entry())
+
+	f, l := fc.FileLine(addr2 + uintptr(3))
+	assert.Equal(t, 0, l)
+	assert.Equal(t, "?", f)
+	fmt.Printf("file:%s, line:%d\n", f, l)
 }
