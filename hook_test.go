@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 	"unsafe"
+	"runtime"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -1120,4 +1121,10 @@ func TestShortCall(t *testing.T) {
 	fmt.Printf("fix code for foo_short_call:\n%s\n", ShowDebugInfo())
 
 	foo_short_call(22)
+
+	fc := runtime.FuncForPC(addr2 + uintptr(2))
+	assert.NotNil(t, fc)
+
+	fmt.Printf("func name get from addr beyond scope:%s\n", fc.Name())
+	assert.Equal(t, addr, fc.Entry())
 }
