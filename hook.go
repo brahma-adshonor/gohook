@@ -69,7 +69,7 @@ func HookMethod(instance interface{}, method string, replacement, trampoline int
 	target := reflect.TypeOf(instance)
 	m, ok := target.MethodByName(method)
 	if !ok {
-		panic(fmt.Sprintf("unknown method %s", method))
+		return fmt.Errorf("unknown method %s.%s()", target.Name(), method)
 	}
 	r := reflect.ValueOf(replacement)
 	t := reflect.ValueOf(trampoline)
@@ -111,25 +111,25 @@ func doUnHook(target uintptr) error {
 
 func doHook(mode int, target, replacement, trampoline reflect.Value) error {
 	if target.Kind() != reflect.Func {
-		panic("target has to be a Func")
+		return fmt.Errorf("target must be a Func")
 	}
 
 	if replacement.Kind() != reflect.Func {
-		panic("replacement has to be a Func")
+		return fmt.Errorf("replacement must be a Func")
 	}
 
 	if target.Type() != replacement.Type() {
-		panic(fmt.Sprintf("target and replacement have to have the same type %s != %s", target.Type(), replacement.Type()))
+		return fmt.Errorf("target and replacement must have the same type %s != %s", target.Type().Name(), replacement.Type().Name())
 	}
 
 	tp := uintptr(0)
 	if trampoline.IsValid() {
 		if trampoline.Kind() != reflect.Func {
-			panic("replacement has to be a Func")
+			return fmt.Errorf("replacement must be a Func")
 		}
 
 		if target.Type() != trampoline.Type() {
-			panic(fmt.Sprintf("target and trampoline have to have the same type %s != %s", target.Type(), trampoline.Type()))
+			return fmt.Errorf("target and trampoline must have the same type %s != %s", target.Type().Name(), trampoline.Type().Name())
 		}
 
 		tp = trampoline.Pointer()
