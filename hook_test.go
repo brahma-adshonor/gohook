@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"unsafe"
-	"runtime"
 
 	"github.com/stretchr/testify/assert"
 )
