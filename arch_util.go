@@ -530,7 +530,7 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 			delta := absAddr - curAddr - uintptr(len(code))
 			off := int64(delta)
 			if unsafe.Sizeof(uintptr(0)) == unsafe.Sizeof(int32(0)) {
-				off = int64(int32(off))
+				off = int64(int32(delta))
 			}
 
 			// fmt.Printf("adjust inst at:%x, sz:%d, delem:%x, target:%x, funcEnd:%x, off:%x\n", curAddr, len(code), delem, absAddr, funcEnd, uintptr(off))
