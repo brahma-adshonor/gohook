@@ -40,10 +40,6 @@ steps:
 
 - script: |
     go test -v .
-    go run example/main.go
-    go run example/example.go
-    go run example/example2.go
-    go run example/example3.go
     GOARCH=386 go test -v .
   workingDirectory: '$(modulePath)'
   displayName: 'run unittest'
