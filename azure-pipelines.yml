@@ -35,6 +35,15 @@ steps:
         dep ensure
     fi
     go build -v .
-    go test -v .
   workingDirectory: '$(modulePath)'
   displayName: 'Get dependencies, then build'
+
+- script: |
+    go test -v .
+    go run example/main.go
+    go run example/example.go
+    go run example/example2.go
+    go run example/example3.go
+    GOARCH=386 go test -v .
+  workingDirectory: '$(modulePath)'
+  displayName: 'run unittest and example'
