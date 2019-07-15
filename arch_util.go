@@ -540,7 +540,7 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 			} else if (curAddr >= delem && curAddr < funcEnd) && (absAddr <= delem || absAddr >= funcEnd) {
 				off -= int64(moveSize)
 			} else {
-				// fmt.Printf("skip adjusting at %x\n", curAddr)
+				// do nothing
 			}
 
 			c, err := adjustInstructionOffset(code, off)
