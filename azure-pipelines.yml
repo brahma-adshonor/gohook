@@ -45,9 +45,9 @@ steps:
   displayName: 'run unittest'
 
 - script: |
-    go run example/main.go &&
-    go run example/example.go &&
-    go run example/example2.go &&
-    go run example/example3.go
+    GO111MODULE=on go run example/main.go &&
+    GO111MODULE=on go run example/example.go &&
+    GO111MODULE=on go run example/example2.go &&
+    GO111MODULE=on go run example/example3.go
   workingDirectory: '$(modulePath)'
   displayName: 'run example'
