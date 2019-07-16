@@ -46,6 +46,7 @@ steps:
 
 - script: |
     GO111MODULE=on go run example/main.go &&
+    GO111MODULE=on go run example/unwind.go &&
     GO111MODULE=on go run example/example.go &&
     GO111MODULE=on go run example/example2.go &&
     GO111MODULE=on go run example/example3.go
