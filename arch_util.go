@@ -386,7 +386,7 @@ func doFixTargetFuncCode(all bool, mode int, start uintptr, funcSz int, to uintp
 		curAddr = start + uintptr(curSz)
 	}
 
-	for i = i; i < len(inst); i++ {
+	for ; i < len(inst); i++ {
 		if funcSz > 0 && int(curAddr-start) >= funcSz {
 			break
 		}
@@ -446,28 +446,28 @@ func GetFuncSizeByGuess(mode int, start uintptr, minimal bool) (uint32, error) {
 	for {
 		inst, err := x86asm.Decode(code, mode)
 		if err != nil || (inst.Opcode == 0 && inst.Len == 1 && inst.Prefix[0] == x86asm.Prefix(code[0])) {
-			return curLen, nil
+			break
 		}
 
 		if inst.Len == 1 && code[0] == 0xcc {
 			// 0xcc -> int3, trap to debugger, padding to function end
 			if minimal {
-				return curLen, nil
+				break
 			}
 			int3_found = true
 		} else if int3_found {
-			return curLen, nil
+			break
 		}
 
 		curLen = curLen + uint32(inst.Len)
 		code = makeSliceFromPointer(start+uintptr(curLen), 16) // instruction takes at most 16 bytes
 
 		if bytes.Equal(funcPrologue, code[:prologueLen]) {
-			return curLen, nil
+			break
 		}
 	}
 
-	return 0, nil
+	return curLen, nil
 }
 
 // sz size of source function
