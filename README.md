@@ -1,3 +1,5 @@
+[![Build Status](https://kmalloc.visualstudio.com/ink/_apis/build/status/kmalloc.gohook?branchName=master)](https://kmalloc.visualstudio.com/ink/_build/latest?definitionId=1&branchName=master)
+
 ## Gohook
 A funny library to hook golang function dynamically at runtime, enabling functionality like patching in dynamic language.
 

@@ -20,6 +20,7 @@ type who interface {
 
 //go:noinline
 func (b *base) Id() int {
+	fmt.Printf("calling base.Id()\n")
 	return b.id
 }
 
@@ -101,4 +102,38 @@ func main() {
 	fmt.Printf("after hook base, id from interface:%d\n", get_id_from(a))
 
 	fmt.Printf("debug info:\n%s\n", gohook.ShowDebugInfo())
+
+	fmt.Printf("method value by value:%v, by type:%v\n", a.Id, (*advance).Id)
+
+	gohook.UnHookMethod(a, "Id")
+	gohook.UnHookMethod(b, "Id")
+
+	// (*advance.Id has the type of func(*advance)())
+	// (a.Id has the type of func()())
+	// so a.Id is a closure wrappiing 'a' as the first argument to function the advance.Id()
+
+	err3 := gohook.Hook((*advance).Id, MyId2, MyIdTrampoline2)
+	if err3 != nil {
+		panic(fmt.Sprintf("hook method by method type failed\n", err3.Error()))
+	}
+
+	fmt.Printf("after hook advance by method type, id:%d\n", a.Id())
+
+	err4 := gohook.Hook(a.Id, MyId2, MyIdTrampoline2)
+	if err4 != nil {
+		fmt.Printf("hook method by method value failed:%s\n", err4.Error())
+	}
+
+	fmt.Printf("debug info:\n%s\n", gohook.ShowDebugInfo())
+
+	call_base_id(b)
+	call_advance_id(a)
+}
+
+func call_advance_id(a *advance) {
+	a.Id()
+}
+
+func call_base_id(b *base) {
+	b.Id()
 }
