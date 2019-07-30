@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"gohook"
 	"golang.org/x/arch/x86/x86asm"
+	"github.com/brahma-adshonor/gohook"
 )
 
 //go:noinline
