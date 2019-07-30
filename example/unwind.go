@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gohook"
+	"github.com/brahma-adshonor/gohook"
 )
 
 //go:noinline
