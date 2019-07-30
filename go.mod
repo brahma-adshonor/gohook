@@ -1,4 +1,4 @@
-module gohook
+module github.com/brahma-adshonor/gohook
 
 go 1.12
 
