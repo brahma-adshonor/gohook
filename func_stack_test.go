@@ -3,6 +3,7 @@ package gohook
 import (
 	"bytes"
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,11 +19,16 @@ func victim(a, b, c int, e, f, g string) int {
 		someBigStackArray[i] = byte((a ^ b) & (i ^ c))
 	}
 
+	ch := make(chan int, 2)
+
 	if (a % 2) != 0 {
 		someBigStackArray[200] = 0xe9
 	}
 
+	ch <- 2
 	fmt.Printf("calling real victim() (%s,%s,%s,%x):%dth\n", e, f, g, someBigStackArray[200], a)
+
+	runtime.GC()
 
 	return victim(a+1, b-1, c-1, e, f, g)
 }
@@ -79,6 +85,10 @@ func TestStackGrowth(t *testing.T) {
 	assert.Nil(t, err)
 
 	ret := victim(0, 1000, 100000, "ab", "miliao", "see")
+
+	runtime.GC()
+	runtime.GC()
+	runtime.GC()
 
 	assert.Equal(t, 100042, ret)
 
@@ -185,4 +195,97 @@ func TestCopyFunc(t *testing.T) {
 	sz3, _ := GetFuncSizeByGuess(GetArchMode(), addr, true)
 
 	assert.Equal(t, sz2, sz3)
+}
+
+type DataHolder struct {
+	size    int
+	addr    []string
+	close   chan int
+	channel chan *DataHolder
+}
+
+func foo_return_orig(from *DataHolder, addr []string) *DataHolder {
+	dh := &DataHolder{
+		addr:    addr,
+		size:    from.size + 8,
+		close:   make(chan int, from.size+2),
+		channel: make(chan *DataHolder, from.size+2),
+	}
+
+	runtime.GC()
+	runtime.GC()
+	from.close = make(chan int, from.size+3)
+	fmt.Printf("done foo_return_orig\n")
+	return dh
+}
+
+func foo_return_replace(from *DataHolder, addr []string) *DataHolder {
+	dummy := make([]int, 10*1024*1024)
+	fmt.Printf("dummy data, size:%d\n", len(dummy))
+
+	dh := &DataHolder{
+		addr:    addr,
+		size:    from.size,
+		close:   make(chan int, from.size),
+		channel: make(chan *DataHolder, from.size+1),
+	}
+
+	origin := foo_return_trampoline(from, addr)
+	from.close = make(chan int, origin.size)
+
+	go func() {
+		select {
+		case <-dh.close:
+			return
+		}
+	}()
+
+	runtime.GC()
+	from.channel = make(chan *DataHolder, 22)
+	runtime.GC()
+	runtime.GC()
+	runtime.GC()
+	runtime.GC()
+	fmt.Printf("done foo_return_replace\n")
+	return dh
+}
+
+func foo_return_trampoline(from *DataHolder, addr []string) *DataHolder {
+	for {
+		if (from.size % 2) != 0 {
+			fmt.Printf("even from size:%d\n", from.size)
+		} else {
+			from.size++
+		}
+
+		if from.size > 100 {
+			break
+		}
+
+		buff := bytes.NewBufferString("something weird")
+		fmt.Printf("len:%d\n", buff.Len())
+	}
+
+	from.close = make(chan int, 11)
+	return from
+}
+
+func TestGarbageCollection(t *testing.T) {
+	err := Hook(foo_return_orig, foo_return_replace, foo_return_trampoline)
+	assert.Nil(t, err)
+
+	addr := []string{"mm11111111111vvvvvvvv", "=ggslsllllllllllllllll"}
+
+	dh := &DataHolder{size: 32}
+	dh2 := foo_return_orig(dh, addr)
+
+	for i := 0; i < 10; i++ {
+		runtime.GC()
+		runtime.GC()
+		assert.NotNil(t, dh2)
+		runtime.GC()
+		runtime.GC()
+	}
+
+	dh.close <- 1
 }
