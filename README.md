@@ -1,6 +1,7 @@
 [![Build Status](https://kmalloc.visualstudio.com/ink/_apis/build/status/kmalloc.gohook?branchName=master)](https://kmalloc.visualstudio.com/ink/_build/latest?definitionId=1&branchName=master)
 
 ## Gohook
+
 A funny library to hook golang function dynamically at runtime, enabling functionality like patching in dynamic language.
 
 The most significant feature this library provided that makes it distinguished from others is that it supports calling back to the original function.
@@ -8,9 +9,11 @@ The most significant feature this library provided that makes it distinguished f
 Read this blogpost for further explanation of the implementation detail: https://www.cnblogs.com/catch/p/10973611.html
 
 ## How it works
+
 The general idea of this library is that gohook will find out the address of a go function and then insert a few jump instructions to redirect execution flow to the new function.
 
 there are a few steps to perform a hook:
+
 1. find out the address of a function, this can be accomplished by standard reflect library.
 2. inject jump code into target function, with carefully crafted binary instruction.
 3. implement trampoline function to enable calling back to the original function.
@@ -18,7 +21,9 @@ there are a few steps to perform a hook:
 It may seem risky and dangerous to perform operations like these at first glance, I can understand the concerns... but this is somehow common practice in c/c++ though, you can google it, search for "hot patching" something like that for more information.
 
 ## Using gohook
+
 Four api are exported from this library, the signatures are simple as illustrated following:
+
 1. `func Hook(target, replace, trampoline interface{}) error;`
 2. `func UnHook(target interface{}) error;`
 3. `func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;`
@@ -69,7 +74,9 @@ func main() {
 For more usage example, please refer to the example folder.
 
 ## Notes
+
 1. 32 bit mode may not work, far jump is not handled.
 2. trampoline is used to make room for the original function, it will be overwrited.
 3. in case of small function which may be inlined, gohook may fail.
 4. this library is created for integrated testing, and not fully tested in production(yet), user discretion is advised.
+5. escape analysis may be influenced: pay caution to reference type arguments, always deep copy arguments if necessary(see func_stack_test.go).

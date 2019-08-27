@@ -206,11 +206,12 @@ type DataHolder struct {
 
 func foo_return_orig(from *DataHolder, addr []string) *DataHolder {
 	dh := &DataHolder{
-		addr:    addr,
 		size:    from.size + 8,
 		close:   make(chan int, from.size+2),
 		channel: make(chan *DataHolder, from.size+2),
 	}
+
+	// origin func doesn't store argument 'addr'
 
 	runtime.GC()
 	runtime.GC()
@@ -223,12 +224,19 @@ func foo_return_replace(from *DataHolder, addr []string) *DataHolder {
 	dummy := make([]int, 10*1024*1024)
 	fmt.Printf("dummy data, size:%d\n", len(dummy))
 
+	// replace func DOES store argument 'addr'
+	/// this will trick golang escape analysis to make wrong decisions regarding whether to heap allocate 'addr'
+
 	dh := &DataHolder{
 		addr:    addr,
 		size:    from.size,
 		close:   make(chan int, from.size),
 		channel: make(chan *DataHolder, from.size+1),
 	}
+
+	// fixing escape analysis by always deep copy slice.
+	dh.addr = make([]string, len(addr))
+	copy(dh.addr, addr)
 
 	origin := foo_return_trampoline(from, addr)
 	from.close = make(chan int, origin.size)
