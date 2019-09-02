@@ -219,6 +219,18 @@ func adjustInstructionOffset(code []byte, off int64) ([]byte, error) {
 		code[2] = byte(off >> 8)
 		code[3] = byte(off >> 16)
 		code[4] = byte(off >> 24)
+	} else if code[0] == 0x48 && (code[1] == 0x8b || code[1] == 0x8d) && (code[2]&0x05) == 0x05 { // mod == 00 r/m == 101
+		// rip relative addressing: mov/lea
+		// intel software development manual: `Addressing-Mode Encoding of ModR/M and SIB Bytes` && `RIP-Relative Addressing`
+		// or https://www.cs.uaf.edu/2016/fall/cs301/lecture/09_28_machinecode.html
+		offset := int(int32(uint32(code[3]) | (uint32(code[4]) << 8) | (uint32(code[5]) << 16) | (uint32(code[6]) << 24)))
+		if offset == int(off) {
+			return code, nil
+		}
+		code[3] = byte(off)
+		code[4] = byte(off >> 8)
+		code[5] = byte(off >> 16)
+		code[6] = byte(off >> 24)
 	} else {
 		return nil, fmt.Errorf("not jump instruction")
 	}
@@ -243,6 +255,14 @@ func calcJumpToAbsAddr(mode int, addr uintptr, code []byte) uintptr {
 	if code[0] == 0xe9 || code[0] == 0xe8 {
 		sz = 5
 		offset = int(int32(uint32(code[1]) | (uint32(code[2]) << 8) | (uint32(code[3]) << 16) | (uint32(code[4]) << 24)))
+	}
+
+	if code[0] == 0x48 && (code[1] == 0x8b || code[1] == 0x8d) && (code[2]&0x05) == 0x05 { // mod == 00 r/m == 101
+		// rip relative addressing: mov/lea
+		// intel software development manual: `Addressing-Mode Encoding of ModR/M and SIB Bytes` && `RIP-Relative Addressing`
+		// or https://www.cs.uaf.edu/2016/fall/cs301/lecture/09_28_machinecode.html
+		sz = 7
+		offset = int(int32(uint32(code[3]) | (uint32(code[4]) << 8) | (uint32(code[5]) << 16) | (uint32(code[6]) << 24)))
 	}
 
 	if sz == 0 {
@@ -549,7 +569,7 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 			}
 
 			inst[i].Code = c
-			absAddr = calcJumpToAbsAddr(mode, inst[i].Addr, code)
+			// absAddr = calcJumpToAbsAddr(mode, inst[i].Addr, code)
 			// fmt.Printf("after adjust inst, old addr:%x, new addr:%x, target:%x\n", curAddr, inst[i].Addr, absAddr)
 		}
 	}
