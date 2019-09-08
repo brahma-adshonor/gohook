@@ -79,4 +79,7 @@ For more usage example, please refer to the example folder.
 2. trampoline is used to make room for the original function, it will be overwrited.
 3. in case of small function which may be inlined, gohook may fail.
 4. this library is created for integrated testing, and not fully tested in production(yet), user discretion is advised.
-5. escape analysis may be influenced: pay caution to reference type arguments, always deep copy arguments if necessary(see func_stack_test.go).
+5. escape analysis may be influenced:
+   - deep copy arguments if you need to copy argument from replacement function(see func_stack_test.go).
+   - escape those arguments from trampoline(by passing it to a goroutine or to other function that can escape it)
+ if that argument is allocated from the replacement function.
