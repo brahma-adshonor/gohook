@@ -37,6 +37,7 @@ func main() {
 	foo(-22)
 }
 
+//go:noinline
 func foo_trampoline(k int) int {
 	defer func(k int) { fmt.Printf("k:%d\n", k)}(k)
 
