@@ -18,6 +18,7 @@ func foo2(v1 int, v2 string) int {
 	return v1 + 4200
 }
 
+//go:noinline
 func foo3(v1 int, v2 string) int {
 	fmt.Printf("foo3:%d(%s)\n", v1, v2)
 	return v1 + 10000
@@ -46,6 +47,7 @@ func myBuffWriteString(b *bytes.Buffer, s string) (int, error) {
 	return 1000 + l, nil
 }
 
+//go:noinline
 func myBuffWriteStringTramp(b *bytes.Buffer, s string) (int, error) {
 	fmt.Printf("fake buffer WriteString tramp, s:%s\n", s)
 	return 0, nil

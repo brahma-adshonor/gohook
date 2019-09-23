@@ -19,6 +19,7 @@ func foo2(v1 int, v2 string) int {
 	return v1 + 4200
 }
 
+//go:noinline
 func foo3(v1 int, v2 string) int {
 	fmt.Printf("foo3:%d(%s)\n", v1, v2)
 	return v1 + 10000
@@ -40,6 +41,7 @@ func myBuffLen(b *bytes.Buffer) int {
 	return 233
 }
 
+//go:noinline
 func myBuffLenTramp(b *bytes.Buffer) int {
 	fmt.Printf("start testing...\n")
 	fmt.Printf("start testing...\n")
@@ -118,6 +120,7 @@ func victim(a, b, c int, e, f, g string) int {
 	return 1 + victim(a+1, b-1, c-1, e, f, g)
 }
 
+//go:noinline
 func victimTrampoline(a, b, c int, e, f, g string) int {
 	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
 	fmt.Printf("calling victim()(%s,%s,%s,%x):%dth\n", e, f, g, a, 0x23)
