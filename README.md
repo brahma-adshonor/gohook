@@ -18,7 +18,7 @@ there are a few steps to perform a hook:
 2. inject jump code into target function, with carefully crafted binary instruction.
 3. implement trampoline function to enable calling back to the original function.
 
-It may seem risky and dangerous to perform operations like these at first glance, I can understand the concerns... but this is somehow common practice in c/c++ though, you can google it, search for "hot patching" something like that for more information.
+It may seem risky and dangerous to perform operations like these at first glance, but this is actually common practice in c/c++ though, you can google it, search for "hot patching" something like that for more information.
 
 ## Using gohook
 
@@ -77,7 +77,8 @@ For more usage example, please refer to the example folder.
 
 1. 32 bit mode may not work, far jump is not handled.
 2. trampoline is used to make room for the original function, it will be overwrited.
-3. in case of small function which may be inlined, gohook may fail.
+3. in case of small function which may be inlined, gohook may fail:
+    - disable inlining by passig -gcflags=-l to build cmd.
 4. this library is created for integrated testing, and not fully tested in production(yet), user discretion is advised.
 5. escape analysis may be influenced:
    - deep copy arguments if you need to copy argument from replacement function(see func_stack_test.go).
