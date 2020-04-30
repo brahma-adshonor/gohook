@@ -57,7 +57,14 @@ func Hook(target, replacement, trampoline interface{}) error {
 	t := reflect.ValueOf(target)
 	r := reflect.ValueOf(replacement)
 	t2 := reflect.ValueOf(trampoline)
-	return doHook(archMode, t, r, t2)
+	return doHook(archMode, false, t, r, t2)
+}
+
+func HookByIndirectJmp(target, replacement, trampoline interface{}) error {
+	t := reflect.ValueOf(target)
+	r := reflect.ValueOf(replacement)
+	t2 := reflect.ValueOf(trampoline)
+	return doHook(archMode, true, t, r, t2)
 }
 
 func UnHook(target interface{}) error {
@@ -73,7 +80,7 @@ func HookMethod(instance interface{}, method string, replacement, trampoline int
 	}
 	r := reflect.ValueOf(replacement)
 	t := reflect.ValueOf(trampoline)
-	return doHook(archMode, m.Func, r, t)
+	return doHook(archMode, false, m.Func, r, t)
 }
 
 func UnHookMethod(instance interface{}, methodName string) error {
@@ -109,7 +116,7 @@ func doUnHook(target uintptr) error {
 	return nil
 }
 
-func doHook(mode int, target, replacement, trampoline reflect.Value) error {
+func doHook(mode int, rdxIndirect bool, target, replacement, trampoline reflect.Value) error {
 	if target.Kind() != reflect.Func {
 		return fmt.Errorf("target must be a Func")
 	}
@@ -137,7 +144,13 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) error {
 
 	doUnHook(target.Pointer())
 
-	info, err := hookFunction(mode, target.Pointer(), replacement.Pointer(), tp)
+	replaceAddr := replacement.Pointer()
+	if rdxIndirect {
+		// FIXME, func value ptr is not accessible.
+		replaceAddr = replacement.UnsafeAddr()
+	}
+
+	info, err := hookFunction(mode, rdxIndirect, target.Pointer(), replaceAddr, tp)
 	if err != nil {
 		return err
 	}
