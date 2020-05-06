@@ -748,7 +748,12 @@ func genJumpCode(mode int, rdxIndirect bool, to, from uintptr) []byte {
 
 	if rdxIndirect {
 		// rdx indirect jump.
-		// by convention, rdx is the context register pointed to funcval
+		// 'to' :data pointer from reflect.Value, pointed to a funcValue, and the first field of funcval is a pointer to the real func.
+		// 'from': this is the instruction code addr of the target function.
+
+		// by convention, rdx is the context register pointed to a funcval.
+		// funcval of a closure function contains extra information used by compiler and runtime.
+		// so using indirect jmp by rdx makes it possible to hook closure func and func created by reflect.MakeFunc
 		if mode == 32 {
 			code = []byte{
 				0xBA,
