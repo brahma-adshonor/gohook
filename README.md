@@ -30,7 +30,7 @@ It may seem risky and dangerous to perform operations like these at first glance
 4. `func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;`
 5. `func UnHookMethod(instance interface{}, method string) error;`
 
-The first 3 functions are used to hook/unhook regular functions, the rest are for instance method, as the naming imply(but, essentially HookMethod(obj,x,y,z) is the same Hook(ObjType.x,y,z)).
+The first 3 functions are used to hook/unhook regular functions, the rest are for instance method, as the naming implies(but, essentially HookMethod(obj,x,y,z) is the same Hook(ObjType.x,y,z)).
 
 Basically, you can just call `gohook.Hook(fmt.Printf, myPrintf, myPrintfTramp)` to hook the fmt.Printf in the standard library.
 
