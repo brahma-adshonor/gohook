@@ -96,7 +96,8 @@ func doFixFuncInplace(mode int, addr, to uintptr, funcSz, to_sz int, info *CodeI
 		}
 	}
 
-	jumpcode2 := genJumpCode(mode, addr+uintptr(jumpSize), to+uintptr(size2))
+	//jump from trampoline back to origin func
+	jumpcode2 := genJumpCode(mode, false, addr+uintptr(jumpSize), to+uintptr(size2))
 
 	origin := makeSliceFromPointer(addr, int(total_len))
 	sf := make([]byte, total_len)
@@ -143,9 +144,9 @@ func doCopyFunction(mode int, allowCall bool, from, to uintptr, sz1, sz2 uint32,
 	return sf, nil
 }
 
-func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, error) {
+func hookFunction(mode int, rdxIndirect bool, target, replace, trampoline uintptr) (*CodeInfo, error) {
 	info := &CodeInfo{}
-	jumpcode := genJumpCode(mode, replace, target)
+	jumpcode := genJumpCode(mode, rdxIndirect, replace, target)
 
 	insLen := len(jumpcode)
 	if trampoline != uintptr(0) {
@@ -203,7 +204,7 @@ func hookFunction(mode int, target, replace, trampoline uintptr) (*CodeInfo, err
 				info.Fix = append(info.Fix, v)
 			}
 
-			jumpcode2 := genJumpCode(mode, target+uintptr(target_body_off), trampoline+uintptr(insLen))
+			jumpcode2 := genJumpCode(mode, false, target+uintptr(target_body_off), trampoline+uintptr(insLen))
 			f2 := makeSliceFromPointer(trampoline, insLen+len(jumpcode2)*2)
 			insLen2 := GetInsLenGreaterThan(mode, f2, insLen+len(jumpcode2))
 			info.TrampolineOrig = make([]byte, insLen2)

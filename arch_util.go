@@ -740,73 +740,106 @@ func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz i
 	return fix, nil
 }
 
-func genJumpCode(mode int, to, from uintptr) []byte {
+func genJumpCode(mode int, rdxIndirect bool, to, from uintptr) []byte {
 	// 1. use relaive jump if |from-to| < 2G
 	// 2. otherwise, push target, then ret
 
 	var code []byte
 
-	delta := int64(from - to)
-	if unsafe.Sizeof(uintptr(0)) == unsafe.Sizeof(int32(0)) {
-		delta = int64(int32(from - to))
-	}
+	if rdxIndirect {
+		// rdx indirect jump.
+		// 'to' :data pointer from reflect.Value, pointed to a funcValue, and the first field of funcval is a pointer to the real func.
+		// 'from': this is the instruction code addr of the target function.
 
-	relative := (delta <= 0x7fffffff)
-
-	if delta < 0 {
-		delta = -delta
-		relative = (delta <= 0x80000000)
-	}
-
-	// relative = false
-
-	if relative {
-		var dis uint32
-		if to > from {
-			dis = uint32(int32(to-from) - 5)
+		// by convention, rdx is the context register pointed to a funcval.
+		// funcval of a closure function contains extra information used by compiler and runtime.
+		// so using indirect jmp by rdx makes it possible to hook closure func and func created by reflect.MakeFunc
+		if mode == 32 {
+			code = []byte{
+				0xBA,
+				byte(to),
+				byte(to >> 8),
+				byte(to >> 16),
+				byte(to >> 24), // mov edx,to
+				0xFF, 0x22,     // jmp DWORD PTR [edx]
+			}
 		} else {
-			dis = uint32(-int32(from-to) - 5)
-		}
-		code = []byte{
-			0xe9,
-			byte(dis),
-			byte(dis >> 8),
-			byte(dis >> 16),
-			byte(dis >> 24),
-		}
-	} else if mode == 32 {
-		code = []byte{
-			0x68, // push
-			byte(to),
-			byte(to >> 8),
-			byte(to >> 16),
-			byte(to >> 24),
-			0xc3, // retn
-		}
-	} else if mode == 64 {
-		// push does not operate on 64bit imm, workarounds are:
-		// 1. move to register(eg, %rdx), then push %rdx, however, overwriting register may cause problem if not handled carefully.
-		// 2. push twice, preferred.
-		/*
-		   code = []byte{
-		       0x48, // prefix
-		       0xba, // mov to %rdx
-		       byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
-		       byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
-		       0x52, // push %rdx
-		       0xc3, // retn
-		   }
-		*/
-		code = []byte{
-			0x68, //push
-			byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
-			0xc7, 0x44, 0x24, // mov $value, 4%rsp
-			0x04, // rsp + 4
-			byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
-			0xc3, // retn
+			code = []byte{
+				0x48, 0xBA,
+				byte(to),
+				byte(to >> 8),
+				byte(to >> 16),
+				byte(to >> 24),
+				byte(to >> 32),
+				byte(to >> 40),
+				byte(to >> 48),
+				byte(to >> 56), // movabs rdx,to
+				0xFF, 0x22,     // jmp QWORD PTR [rdx]
+			}
 		}
 	} else {
-		panic("invalid mode")
+		delta := int64(from - to)
+		if unsafe.Sizeof(uintptr(0)) == unsafe.Sizeof(int32(0)) {
+			delta = int64(int32(from - to))
+		}
+
+		relative := (delta <= 0x7fffffff)
+
+		if delta < 0 {
+			delta = -delta
+			relative = (delta <= 0x80000000)
+		}
+
+		// relative = false
+
+		if relative {
+			var dis uint32
+			if to > from {
+				dis = uint32(int32(to-from) - 5)
+			} else {
+				dis = uint32(-int32(from-to) - 5)
+			}
+			code = []byte{
+				0xe9,
+				byte(dis),
+				byte(dis >> 8),
+				byte(dis >> 16),
+				byte(dis >> 24),
+			}
+		} else if mode == 32 {
+			code = []byte{
+				0x68, // push
+				byte(to),
+				byte(to >> 8),
+				byte(to >> 16),
+				byte(to >> 24),
+				0xc3, // retn
+			}
+		} else if mode == 64 {
+			// push does not operate on 64bit imm, workarounds are:
+			// 1. move to register(eg, %rdx), then push %rdx, however, overwriting register may cause problem if not handled carefully.
+			// 2. push twice, preferred.
+			/*
+			   code = []byte{
+			       0x48, // prefix
+			       0xba, // mov to %rdx
+			       byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
+			       byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
+			       0x52, // push %rdx
+			       0xc3, // retn
+			   }
+			*/
+			code = []byte{
+				0x68, //push
+				byte(to), byte(to >> 8), byte(to >> 16), byte(to >> 24),
+				0xc7, 0x44, 0x24, // mov $value, 4%rsp
+				0x04, // rsp + 4
+				byte(to >> 32), byte(to >> 40), byte(to >> 48), byte(to >> 56),
+				0xc3, // retn
+			}
+		} else {
+			panic("invalid mode")
+		}
 	}
 
 	sz := len(code)
