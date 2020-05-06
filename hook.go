@@ -32,6 +32,17 @@ func GetArchMode() int {
 	return archMode
 }
 
+// valueStruct is taken from runtime source code.
+// it may be changed in later release
+type valueStruct struct {
+	typ uintptr
+	ptr uintptr
+}
+
+func getDataPtrFromValue(v reflect.Value) uintptr {
+	return (uintptr)((*valueStruct)(unsafe.Pointer(&v)).ptr)
+}
+
 func ShowDebugInfo() string {
 	buff := bytes.NewBuffer(make([]byte, 0, 256))
 	for k, v := range g_all {
@@ -57,7 +68,14 @@ func Hook(target, replacement, trampoline interface{}) error {
 	t := reflect.ValueOf(target)
 	r := reflect.ValueOf(replacement)
 	t2 := reflect.ValueOf(trampoline)
-	return doHook(archMode, t, r, t2)
+	return doHook(archMode, false, t, r, t2)
+}
+
+func HookByIndirectJmp(target, replacement, trampoline interface{}) error {
+	t := reflect.ValueOf(target)
+	r := reflect.ValueOf(replacement)
+	t2 := reflect.ValueOf(trampoline)
+	return doHook(archMode, true, t, r, t2)
 }
 
 func UnHook(target interface{}) error {
@@ -73,7 +91,7 @@ func HookMethod(instance interface{}, method string, replacement, trampoline int
 	}
 	r := reflect.ValueOf(replacement)
 	t := reflect.ValueOf(trampoline)
-	return doHook(archMode, m.Func, r, t)
+	return doHook(archMode, false, m.Func, r, t)
 }
 
 func UnHookMethod(instance interface{}, methodName string) error {
@@ -109,7 +127,7 @@ func doUnHook(target uintptr) error {
 	return nil
 }
 
-func doHook(mode int, target, replacement, trampoline reflect.Value) error {
+func doHook(mode int, rdxIndirect bool, target, replacement, trampoline reflect.Value) error {
 	if target.Kind() != reflect.Func {
 		return fmt.Errorf("target must be a Func")
 	}
@@ -137,7 +155,13 @@ func doHook(mode int, target, replacement, trampoline reflect.Value) error {
 
 	doUnHook(target.Pointer())
 
-	info, err := hookFunction(mode, target.Pointer(), replacement.Pointer(), tp)
+	replaceAddr := replacement.Pointer()
+	if rdxIndirect {
+		// get data ptr out of a reflect value.
+		replaceAddr = getDataPtrFromValue(replacement)
+	}
+
+	info, err := hookFunction(mode, rdxIndirect, target.Pointer(), replaceAddr, tp)
 	if err != nil {
 		return err
 	}
