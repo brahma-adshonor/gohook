@@ -43,7 +43,7 @@ HookByIndirectJmp() differs from Hook() in that it uses rdx to perform an indire
 1. `rdx is the context register used by compiler to access funcval.`
 2. `funcval contains extra information for a closure, which is used by compiler and runtime.`
 
-this makes it possible to hook closure function and function created by reflect.MakeFunc().
+this makes it possible to hook closure function and function created by reflect.MakeFunc(), in a less compatible way, since the implementaion of this hook has to guess the memory layout of a reflect.Value object, which may vary from different version of runtime.
 
 ```go
 package main
