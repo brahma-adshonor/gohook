@@ -163,3 +163,44 @@ func TestInstanceHook(t *testing.T) {
 	sz3, _ := myBuffWriteStringTramp(nil, "sssssss")
 	assert.Equal(t, 0, sz3)
 }
+
+//go:noinline
+func foov(v int) int {
+	v2 := v*v + 2*v
+	return v + v2
+}
+
+func foor(v int) int {
+	if v%2 == 0 {
+		fmt.Printf("vvvvvvv:%d\n", v)
+	}
+
+	return v + 1 + foot(v)
+}
+
+//go:noinline
+func foot(v int) int {
+	fmt.Printf("fake func hold:%+v\n", v)
+	fmt.Printf("fake func hold:%+v\n", v)
+	fmt.Printf("fake func hold:%+v\n", v)
+	if v%3 == 0 {
+		panic("vvvv")
+	} else {
+		v = v*v + 23
+	}
+
+	return v
+}
+
+func TestHookByIndirectJmp(t *testing.T) {
+	ResetFuncPrologue()
+
+	v := foov(3)
+	assert.Equal(t, 3*3+2*3+3, v)
+
+	err := HookByIndirectJmp(foov, foor, foot)
+	assert.Nil(t, err)
+
+	v2 := foov(3)
+	assert.Equal(t, 3+1+v, v2)
+}

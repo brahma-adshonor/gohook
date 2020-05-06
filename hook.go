@@ -32,6 +32,17 @@ func GetArchMode() int {
 	return archMode
 }
 
+// valueStruct is taken from runtime source code.
+// it may be changed in later release
+type valueStruct struct {
+	typ uintptr
+	ptr uintptr
+}
+
+func getDataPtrFromValue(v reflect.Value) uintptr {
+	return (uintptr)((*valueStruct)(unsafe.Pointer(&v)).ptr)
+}
+
 func ShowDebugInfo() string {
 	buff := bytes.NewBuffer(make([]byte, 0, 256))
 	for k, v := range g_all {
@@ -146,8 +157,8 @@ func doHook(mode int, rdxIndirect bool, target, replacement, trampoline reflect.
 
 	replaceAddr := replacement.Pointer()
 	if rdxIndirect {
-		// FIXME, func value ptr is not accessible.
-		replaceAddr = replacement.UnsafeAddr()
+		// get data ptr out of a reflect value.
+		replaceAddr = getDataPtrFromValue(replacement)
 	}
 
 	info, err := hookFunction(mode, rdxIndirect, target.Pointer(), replaceAddr, tp)
