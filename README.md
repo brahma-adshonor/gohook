@@ -22,20 +22,28 @@ It may seem risky and dangerous to perform operations like these at first glance
 
 ## Using gohook
 
-Four api are exported from this library, the signatures are simple as illustrated following:
+5 api are exported from this library, the signatures are simple as illustrated following:
 
 1. `func Hook(target, replace, trampoline interface{}) error;`
 2. `func UnHook(target interface{}) error;`
-3. `func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;`
-4. `func UnHookMethod(instance interface{}, method string) error;`
+3. `func HookByIndirectJmp(target, replace, trampoline interface{});`
+4. `func HookMethod(instance interface{}, method string, replace, trampoline interface{}) error;`
+5. `func UnHookMethod(instance interface{}, method string) error;`
 
-The first 2 functions are used to hook/unhook regular functions, the rest are for instance method, as the naming imply.
+The first 3 functions are used to hook/unhook regular functions, the rest are for instance method, as the naming implies(but, essentially HookMethod(obj,x,y,z) is the same Hook(ObjType.x,y,z)).
 
 Basically, you can just call `gohook.Hook(fmt.Printf, myPrintf, myPrintfTramp)` to hook the fmt.Printf in the standard library.
 
 Trampolines here serves as a shadow function after the target function is hooked, think of it as a copy of the original target function.
 
 In situation where calling back to the original function is not needed, trampoline can be passed a nil value.
+
+HookByIndirectJmp() differs from Hook() in that it uses rdx to perform an indirect jump from a funcval, and:
+
+1. `rdx is the context register used by compiler to access funcval.`
+2. `funcval contains extra information for a closure, which is used by compiler and runtime.`
+
+this makes it possible to hook closure function and function created by reflect.MakeFunc().
 
 ```go
 package main
