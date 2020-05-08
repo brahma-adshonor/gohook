@@ -3,6 +3,8 @@ package gohook
 import (
 	"bytes"
 	"fmt"
+	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -203,4 +205,69 @@ func TestHookByIndirectJmp(t *testing.T) {
 
 	v2 := foov(3)
 	assert.Equal(t, 3+1+v, v2)
+}
+
+type cfunc func(int) int
+
+func getClosureFunc(v int) (cfunc, cfunc) {
+	vv := v + 1
+
+	f1 := func(v2 int) int {
+		fmt.Printf("f111111, v:%d\n", v2) // prevent inline
+		v3 := v2*v2 + vv*v + v
+		return v3
+	}
+
+	vv2 := v + 10
+	f2 := func(v2 int) int {
+		return v2 + vv2 + v
+	}
+
+	return f1, f2
+}
+
+func TestClosure(t *testing.T) {
+	ResetFuncPrologue()
+
+	f1, f2 := getClosureFunc(200)
+
+	// use Hook() will fail
+	err := HookByIndirectJmp(f1, f2, nil)
+	assert.Nil(t, err)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		v1 := f1(2)
+		assert.Equal(t, 2+200+10+200, v1)
+		wg.Done()
+	}()
+
+	wg.Wait()
+}
+
+//go:noinline
+func tfunc(v int) int {
+	fmt.Printf("vvvvv:%v\n", v)
+	return v*v*100 + 123 + v
+}
+
+func TestMakeFunc(t *testing.T) {
+	ResetFuncPrologue()
+
+	replace := func(in []reflect.Value) []reflect.Value {
+		v := int(in[0].Int())
+		ret := reflect.ValueOf(v + 1000)
+		return []reflect.Value{ret}
+	}
+
+	f := reflect.MakeFunc(reflect.ValueOf(tfunc).Type(), replace)
+
+	// use Hook() will panic
+	err := HookByIndirectJmp(tfunc, f.Interface(), nil)
+	assert.Nil(t, err)
+
+	v := tfunc(int(3))
+	assert.Equal(t, 3+1000, v)
 }
