@@ -6,7 +6,7 @@ A funny library to hook golang function dynamically at runtime, enabling functio
 
 The most significant feature this library provided that makes it distinguished from others is that it supports calling back to the original function.
 
-Read this blogpost for further explanation of the implementation detail: https://www.cnblogs.com/catch/p/10973611.html
+Read following blogpost for further explanation of the implementation detail: [1](https://www.cnblogs.com/catch/p/10973611.html),[2](https://onedrive.live.com/View.aspx?resid=7804A3BDAEB13A9F!58083&authkey=!AKVlLS9s9KYh07s)
 
 ## How it works
 
