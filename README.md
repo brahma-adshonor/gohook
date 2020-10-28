@@ -50,8 +50,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/brahma-adshonor/gohook"
 	"os"
-	"github.com/kmalloc/gohook"
 )
 
 func myPrintln(a ...interface{}) (n int, err error) {
