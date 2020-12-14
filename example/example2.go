@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"github.com/brahma-adshonor/gohook"
+	"os"
 )
 
 func myPrintln(a ...interface{}) (n int, err error) {
