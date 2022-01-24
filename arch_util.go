@@ -385,7 +385,7 @@ func doFixTargetFuncCode(all bool, mode int, start uintptr, funcSz int, to uintp
 		} else if sz == 5 && nc[0] == 0xe8 {
 			// call instruction is not allowed to move.
 			// this will mess up with golang stack reallocation.
-			return nil, fmt.Errorf("call instruction is not allowed to move")
+			return nil, fmt.Errorf("call instruction is not allowed to move, addr:0x%x", curAddr)
 		}
 
 		if ft == FT_RET {
@@ -686,6 +686,8 @@ func parseInstruction(mode int, addr uintptr, funcSz int, minimal bool) ([]CodeF
 	return ret, nil
 }
 
+// fixFuncInstructionInplace trys to modify instruction directly in origin function by extending instruction size if necessary.
+// this is impossible sometime, since origin function size may not be large enough
 func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz int, jumpSize int) ([]CodeFix, error) {
 	/*
 		trail := makeSliceFromPointer(addr+uintptr(funcSz), 1024)
