@@ -436,10 +436,10 @@ func doFixTargetFuncCode(all bool, mode int, start uintptr, funcSz int, to uintp
 	return fix, nil
 }
 
-// FixTargetFuncCode fix function code starting at address [start]
+// FixTargetFuncCode trys to fix function code starting at address [start]
 // parameter 'funcSz' may not specify, in which case, we need to find out the end by scanning next prologue or finding invalid instruction.
-// 'to' specifys a new location, to which 'move_sz' bytes instruction will be copied
-// since move_sz byte instructions will be copied, those relative jump instruction need to be fixed.
+// 'to' specifys a new location, to which 'move_sz' bytes of instruction will be copied
+// since move_sz bytes of instructions will be copied, those relative jump instructions need to be fixed(adjusted).
 func FixTargetFuncCode(mode int, start uintptr, funcSz uint32, to uintptr, move_sz int) ([]CodeFix, error) {
 	inst, _ := parseInstruction(mode, start, int(funcSz), false)
 	return doFixTargetFuncCode(false, mode, start, int(funcSz), to, move_sz, inst)
@@ -686,7 +686,7 @@ func parseInstruction(mode int, addr uintptr, funcSz int, minimal bool) ([]CodeF
 	return ret, nil
 }
 
-// fixFuncInstructionInplace trys to modify instruction directly in origin function by extending instruction size if necessary.
+// fixFuncInstructionInplace trys to modify instruction directly in the original function by extending its instruction size if necessary.
 // this is impossible sometime, since origin function size may not be large enough
 func fixFuncInstructionInplace(mode int, addr, to uintptr, funcSz int, move_sz int, jumpSize int) ([]CodeFix, error) {
 	/*

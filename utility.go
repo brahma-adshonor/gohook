@@ -177,8 +177,14 @@ func hookFunction(mode int, rdxIndirect bool, target, replace, trampoline uintpt
 				return nil, fmt.Errorf("failed calc func size")
 			}
 
+			// try to extend jump instructions inplace of the original function.
+			// so that we can move part of its instructions later.
+			// note: first attempt above will fail only when jump instruction overflow.
 			err1 := doFixFuncInplace(mode, target, trampoline, int(sz1), insLen, info, len(jumpcode))
 			if err1 != nil {
+				// inplace-fix fails.
+				// next we try to copy the whole target function to trampline.
+				// this will succ only when original function is too small to carry out a inplace fix.
 				info.How = "copy"
 				origin, err2 := doCopyFunction(mode, false, target, trampoline, sz1, sz2, info)
 				if err2 != nil {
