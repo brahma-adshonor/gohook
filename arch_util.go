@@ -13,7 +13,7 @@ import (
 type CodeFix struct {
 	Code    []byte
 	Addr    uintptr
-	Foreign bool
+	Foreign bool // applied to instructions that are copied to new localtion(trampoline), false mean the fix is for instruction in the original function body
 }
 
 var (
@@ -272,6 +272,9 @@ func calcJumpToAbsAddr(mode int, addr uintptr, code []byte) uintptr {
 	return addr + uintptr(sz) + uintptr(offset)
 }
 
+// fix instruction operand.
+// the instruction to be fixed will be copied to function started at 'to'
+// so instruction operand might need to adjust, currently only offset is fixed.
 func FixOneInstruction(mode int, fix_recursive_call bool, startAddr, curAddr uintptr, code []byte, to uintptr, to_sz int) (int, int, []byte) {
 	nc := make([]byte, len(code))
 	copy(nc, code)
@@ -364,6 +367,9 @@ func FixOneInstruction(mode int, fix_recursive_call bool, startAddr, curAddr uin
 	return sz, FT_OTHER, nc
 }
 
+// instructions from target function will be copied to new location started at 'to'
+// those copied instruction thus might need to be adjusted, eg, the offset operand.
+// here we try to generate a fix to the instruction so that it can be copied to the new location correctly
 func doFixTargetFuncCode(all bool, mode int, start uintptr, funcSz int, to uintptr, move_sz int, inst []CodeFix) ([]CodeFix, error) {
 	fix := make([]CodeFix, 0, 64)
 
@@ -577,6 +583,7 @@ func adjustJmpOffset(mode int, start, delem uintptr, funcSize, moveSize int, ins
 	return nil
 }
 
+// trys to translate short jump that is not reachable when moved to new location.
 func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz, move_sz, jumpSize int) (int, []CodeFix, error) {
 	newSz := 0
 	fix := make([]CodeFix, 0, 256)
@@ -591,6 +598,7 @@ func translateShortJump(mode int, addr, to uintptr, inst []CodeFix, funcSz, move
 			break
 		}
 
+		// whether current instruction will be copied to new location
 		foreign := false
 		if curAddr < addr+uintptr(move_sz) {
 			foreign = true
