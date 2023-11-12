@@ -7,27 +7,28 @@ import (
 )
 
 //go:noinline
-func foo1(v1 int, v2 string) int {
-	fmt.Printf("foo1:%d(%s)\n", v1, v2)
+func ex_foo1(v1 int, v2 string) int {
+	fmt.Printf("ex_foo1:%d(%s)\n", v1, v2)
 	return v1 + 42
 }
 
-func foo2(v1 int, v2 string) int {
-	fmt.Printf("foo2:%d(%s)\n", v1, v2)
-	v1 = foo3(100, "not calling foo3")
+//go:noinline
+func ex_foo2(v1 int, v2 string) int {
+	fmt.Printf("ex_foo2:%d(%s)\n", v1, v2)
+	v1 = ex_foo3(100, "not calling foo3")
 	return v1 + 4200
 }
 
 //go:noinline
-func foo3(v1 int, v2 string) int {
-	fmt.Printf("foo3:%d(%s)\n", v1, v2)
+func ex_foo3(v1 int, v2 string) int {
+	fmt.Printf("ex_foo3:%d(%s)\n", v1, v2)
 	return v1 + 10000
 }
 
 func hookFunc() {
-	ret1 := foo1(23, "miliao for foo1 before hook")
+	ret1 := ex_foo1(23, "miliao for foo1 before hook")
 
-	err := gohook.Hook(foo1, foo2, foo3)
+	err := gohook.Hook(ex_foo1, ex_foo2, ex_foo3)
 
 	fmt.Printf("hook done\n")
 	if err != nil {
@@ -35,7 +36,7 @@ func hookFunc() {
 		return
 	}
 
-	ret2 := foo1(23, "miliao for foo1 after hook")
+	ret2 := ex_foo1(23, "miliao for foo1 after hook")
 
 	fmt.Printf("r1:%d, r2:%d\n", ret1, ret2)
 }
@@ -53,13 +54,13 @@ func myBuffWriteStringTramp(b *bytes.Buffer, s string) (int, error) {
 	return 0, nil
 }
 
-func myBuffLen(b *bytes.Buffer) int {
+func ex_myBuffLen(b *bytes.Buffer) int {
 	fmt.Println("calling myBuffLen")
-	return 233 + myBuffLenTramp(b)
+	return 233 + ex_myBuffLenTramp(b)
 }
 
 //go:noinline
-func myBuffLenTramp(b *bytes.Buffer) int {
+func ex_myBuffLenTramp(b *bytes.Buffer) int {
 	fmt.Println("calling myBuffLenTramp1")
 	fmt.Println("calling myBuffLenTramp2")
 	fmt.Println("calling myBuffLenTramp3")
@@ -80,18 +81,18 @@ func hookMethod() {
 	sz1 := buff.Len()
 
 	fmt.Printf("try hook bytes.Buffer.Len()\n")
-	err2 := gohook.HookMethod(buff, "Len", myBuffLen, myBuffLenTramp)
+	err2 := gohook.HookMethod(buff, "Len", ex_myBuffLen, ex_myBuffLenTramp)
 	if err2 != nil {
 		fmt.Printf("hook Len() fail, err:%s\n", err2.Error())
 		return
 	}
 
 	sz2 := buff.Len()
-	sz3 := myBuffLenTramp(buff)
+	sz3 := ex_myBuffLenTramp(buff)
 
 	gohook.UnHookMethod(buff, "Len")
 
-	sz4 := myBuffLen(buff)
+	sz4 := ex_myBuffLen(buff)
 	fmt.Printf("old sz:%d, new sz:%d, copy func:%d, recover:%d\n", sz1, sz2, sz3, sz4)
 }
 
